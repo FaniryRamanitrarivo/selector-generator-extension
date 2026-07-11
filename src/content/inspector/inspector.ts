@@ -1,3 +1,4 @@
+import { analyzeElement } from "../analyzer/element-analyzer";
 import {
     highlight,
     removeHighlight
@@ -33,9 +34,11 @@ function click(
 
     removeHighlight();
 
+    const context = analyzeElement(target);
+
     console.log(
         "Selected element",
-        target
+        context
     );
 
     stopInspection();

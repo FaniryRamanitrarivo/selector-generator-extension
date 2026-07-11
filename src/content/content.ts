@@ -6,6 +6,16 @@ import {
     startInspection
 } from "./inspector/inspector";
 
+import {
+    buildDOMContext
+} from "./analyzer/dom-context";
+
+
+import {
+    SelectorGenerationPipeline
+} from "./selector/pipeline/selector-generation-pipeline";
+
+
 
 console.log(
     "Content loaded"
