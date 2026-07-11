@@ -2,9 +2,13 @@ import {
     MessageType
 } from "@/messaging/messages";
 
+import {
+    startInspection
+} from "./inspector/inspector";
+
 
 console.log(
-    "Content script loaded"
+    "Content loaded"
 );
 
 
@@ -14,13 +18,15 @@ browser.runtime.onMessage.addListener(
     ) => {
 
 
-        if(
-            message.type === MessageType.START_INSPECTION
-        ) {
+        switch(message.type) {
 
-            console.log(
-                "Inspection started"
-            );
+
+            case MessageType.START_INSPECTION:
+
+                startInspection();
+
+                break;
+
 
         }
 
