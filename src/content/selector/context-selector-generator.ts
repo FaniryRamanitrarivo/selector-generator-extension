@@ -14,7 +14,7 @@ export function generateSelectorParts(
 ) {
 
     const nodes = [
-        ...context.ancestors.reverse(),
+        ...[...context.ancestors].reverse(),
         context.element
     ];
 

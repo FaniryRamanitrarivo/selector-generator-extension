@@ -67,7 +67,7 @@ export class SelectorGenerationPipeline {
 
         const parts =
             [
-                ...context.ancestors.reverse(),
+                ...[...context.ancestors].reverse(),
                 context.element
             ]
             .map(node => {
@@ -112,12 +112,18 @@ export class SelectorGenerationPipeline {
 
             });
 
-
+        console.log(
+            "SELECTOR PARTS",
+            parts
+        );
 
         const selector =
             this.builder.build(parts);
 
-
+        console.log(
+            "GENERATED SELECTOR",
+            selector
+        );
 
         return this.generator.generate([
             selector

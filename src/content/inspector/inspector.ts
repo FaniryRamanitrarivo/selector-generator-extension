@@ -4,6 +4,20 @@ import {
     removeHighlight
 } from "./highlighter";
 
+import {
+    buildDOMContext
+} from "../analyzer/dom-context";
+
+
+import {
+    SelectorGenerationPipeline
+} from "../selector/pipeline/selector-generation-pipeline";
+
+
+import {
+    MessageType
+} from "@/messaging/messages";
+
 
 let active = false;
 
@@ -34,7 +48,19 @@ function click(
 
     removeHighlight();
 
-    const context = analyzeElement(target);
+    const context = buildDOMContext(target);
+
+    const pipeline = new SelectorGenerationPipeline();
+
+    const result = pipeline.generate(context);
+
+    browser.runtime.sendMessage({
+
+        type: MessageType.ELEMENT_SELECTED,
+
+        payload: result
+
+    });
 
     console.log(
         "Selected element",

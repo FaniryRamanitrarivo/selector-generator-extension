@@ -48,7 +48,7 @@ export class SelectorGenerator {
 
             })
             .filter(result =>
-                result.count === 1
+                result.count > 0
             );
 
     }
