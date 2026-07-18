@@ -1,26 +1,84 @@
 import type { SelectorPart } from "../selector-part";
 
+export type BuildedSelector = {
+
+    selector: string;
+
+    score: number;
+
+};
+
+
 export class SelectorBuilder {
 
     build(
         parts: SelectorPart[]
-    ): string {
+    ): BuildedSelector[] {
 
-        return parts    
-            .map(part => {
+        const lastPart = parts.at(-1);
 
-                let selector = "";
+        if (!lastPart) {
+            return [];
+        }
 
-                if(part.tagName)
-                    selector += part.tagName;
 
-                if(part.fragment) 
-                    selector += part.fragment.selector
+        const lastFragments = lastPart.fragments?.length
+            ? lastPart.fragments
+            : [undefined];
 
-                return selector;
 
-            })
-            .join(" ");
+        return parts
+            .slice(0, -1)
+            .flatMap(part => {
+
+                const fragments = part.fragments?.length
+                    ? part.fragments
+                    : [undefined];
+
+
+                return fragments.flatMap(fragment => {
+
+                    let selector = "";
+
+                    let score = 0;
+
+
+                    if (part.tagName) {
+                        selector += part.tagName;
+                    }
+
+
+                    if (fragment) {
+                        selector += fragment.selector;
+                        score += fragment.score;
+                    }
+
+
+                    if (lastPart.tagName) {
+                        selector += ` ${lastPart.tagName}`;
+                    }
+
+
+                    return lastFragments.map(lastFragment => {
+
+                        if (!lastFragment) {
+                            return {
+                                selector,
+                                score
+                            };
+                        }
+
+
+                        return {
+                            selector: `${selector}${lastFragment.selector}`,
+                            score: score + lastFragment.score
+                        };
+
+                    });
+
+                });
+
+            });
 
     }
 

@@ -4,6 +4,8 @@ export interface SelectorValidationResult {
 
     count: number;
 
+    matchesTarget: boolean;
+
     isValid: boolean;
 
 }
@@ -11,18 +13,27 @@ export interface SelectorValidationResult {
 export class SelectorValidator {
 
     validate(
-        selector: string
+        selector: string,
+        target: HTMLElement = null
     ): SelectorValidationResult {
 
         const elements = document.querySelectorAll(selector);
+
+        const count = elements.length;
+
+        const matchesTarget = count === 1 && 
+                (target ? elements[0] === target: true);
+
 
         return {
 
             selector,
 
-            count: elements.length,
+            count,
 
-            isValid: elements.length === 1
+            matchesTarget,
+
+            isValid: count === 1
 
         };
 

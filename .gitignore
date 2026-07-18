@@ -7,6 +7,8 @@ dist/
 # Vite
 .vite/
 
+algo/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

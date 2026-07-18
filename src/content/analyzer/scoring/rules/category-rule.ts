@@ -1,41 +1,39 @@
 import { ATTRIBUTE_CATEGORIES } from "../../attributes/attribute-category";
 
+import type { AttributeCandidate } from "../attribute-candidature";
 import type { ScoringRule } from "../scoring-rule";
 
-export class CategoryRule implements ScoringRule {
 
-    apply(candidate) {
+export class CategoryRule
+    implements ScoringRule<AttributeCandidate> {
 
-        switch(candidate.category) {
+
+    apply(
+        candidate: AttributeCandidate
+    ): number {
+
+        switch (candidate.category) {
 
             case ATTRIBUTE_CATEGORIES.DATA:
-                return 100;
+                return 1;
 
-            
             case ATTRIBUTE_CATEGORIES.ID:
-                return 90;
+                return 0.9;
 
-            
             case ATTRIBUTE_CATEGORIES.NAME:
-                return 80;
+                return 0.8;
 
-            
-            case ATTRIBUTE_CATEGORIES.DATA:
-                return 70;
+            case ATTRIBUTE_CATEGORIES.ROLE:
+                return 0.7;
 
-            
             case ATTRIBUTE_CATEGORIES.CLASS:
-                return 60;
+                return 0.6;
 
-            
             default:
-                return 10;            
+                return 0.1;
 
         }
-
 
     }
 
 }
-
-

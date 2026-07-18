@@ -28,7 +28,6 @@ function mouseMove(
     const target = event.target as HTMLElement;
 
     if(target) {
-
         highlight(target);
 
     }
@@ -52,7 +51,9 @@ function click(
 
     const pipeline = new SelectorGenerationPipeline();
 
-    const result = pipeline.generate(context);
+    const result = pipeline.generate(context, target);
+
+    console.log("result == ", result)
 
     browser.runtime.sendMessage({
 
@@ -62,16 +63,12 @@ function click(
 
     });
 
-    console.log(
-        "Selected element",
-        context
-    );
-
     stopInspection();
 
 }
 
 export function startInspection() {
+
 
     if(active) 
         return;

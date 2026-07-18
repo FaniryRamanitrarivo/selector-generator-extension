@@ -33,25 +33,22 @@ function mapElement(
 }
 
 export function buildDOMContext(
-    element: HTMLElement,
-    maxDepth = 5
+    element: HTMLElement
 ): DOMContext {
 
     const ancestors: ElementNodeContext[] = [];
 
     let parent = element.parentElement;
+    let parentTagName = parent.tagName.toLowerCase();
 
-    let depth = 0;
-
-    while(parent && depth < maxDepth) {
+    while(parent && parentTagName != "body") {
 
         ancestors.push(
             mapElement(parent)
         );
 
         parent = parent.parentElement;
-
-        depth++;
+        parentTagName = parent.tagName.toLowerCase();
 
     }
 

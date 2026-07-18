@@ -11,21 +11,11 @@ export default mergeConfig(base, {
 
         outDir: "dist/firefox",
 
-        emptyOutDir: true,
+        emptyOutDir: false,
 
         rollupOptions: {
 
             input: {
-
-                background: path.resolve(
-                    __dirname,
-                    "../src/background/background.ts"
-                ),
-
-                content: path.resolve(
-                    __dirname,
-                    "../src/content/content.ts"
-                ),
 
                 sidebar: path.resolve(
                     __dirname,

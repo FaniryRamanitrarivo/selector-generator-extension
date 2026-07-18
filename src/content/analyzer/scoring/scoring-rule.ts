@@ -1,11 +1,5 @@
-import type { AttributeCandidate } from "./attribute-candidature";
+export interface ScoringRule<T> {
 
-export interface ScoringRule {
-
-    apply(
-        candidate: AttributeCandidate
-    ): number;
+    apply(candidate: T): number;
 
 }
-
-
