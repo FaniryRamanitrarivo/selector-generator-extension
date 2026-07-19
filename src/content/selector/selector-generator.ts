@@ -4,16 +4,9 @@ import {
     SelectorValidator
 } from "./validator/selector-validator";
 
-
-export interface GeneratedSelector {
-
-    selector: string;
-
-    count: number;
-
-    score: number;
-
-}
+import type {
+    GeneratedSelector
+} from "./generated-selector";
 
 
 export class SelectorGenerator {
@@ -51,14 +44,13 @@ export class SelectorGenerator {
 
                     score: selector.score,
 
-                    isValid: result.isValid
+                    countScore: 0
 
                 };
 
             })
-            //.filter(result => result.isValid)
-            .sort((a, b) =>
-                b.score - a.score
+            .filter(result => 
+                result.count > 0
             );
 
     }

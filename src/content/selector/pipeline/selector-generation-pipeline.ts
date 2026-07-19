@@ -35,6 +35,7 @@ import { SelectorPartScorer } from "@/content/analyzer/scoring/selector-part-sco
 import { ContainerUniquenessRule } from "@/content/analyzer/scoring/rules/container-uniqueness-rule";
 
 import type { SelectorPart } from "../selector-part";
+import { SelectorCountNormalizer } from "@/content/analyzer/scoring/selector-count-normalizer";
 
 
 export class SelectorGenerationPipeline {
@@ -143,9 +144,9 @@ export class SelectorGenerationPipeline {
                             (a, b) =>
                                 b.score - a.score
                         )
-                        .slice(0, 3);
+                        .slice(0, 5);
 
-
+                    console.log('fragments ', fragments)
 
                 const part: SelectorPart = {
 
@@ -189,13 +190,25 @@ export class SelectorGenerationPipeline {
             scoredSelectors
         );
 
+        const generated =
+            this.generator.generate(
+                scoredSelectors,
+                target
+            );
 
-        return this.generator.generate(
-            scoredSelectors,
-            target
-        )
-        .slice(0, 100);
 
-    }
+        const normalized =
+            new SelectorCountNormalizer()
+                .normalize(generated);
+
+
+        return normalized
+            .sort(
+                (a,b) =>
+                    b.score - a.score
+            )
+            .slice(0,100);
+
+            }
 
 }

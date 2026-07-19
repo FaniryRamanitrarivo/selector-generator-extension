@@ -33,7 +33,7 @@ export class SelectorValidator {
 
             matchesTarget,
 
-            isValid: count === 1
+            isValid: count > 0
 
         };
 
