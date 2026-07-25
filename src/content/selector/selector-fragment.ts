@@ -4,4 +4,10 @@ export interface SelectorFragment {
 
     score: number;
 
+    operator?: "exact" | "contains" | "containsWord" | "startsWith" | "endsWith";
+
+    token?: string;
+
+    resultCount?: number;
+
 }

@@ -6,22 +6,18 @@ export class SelectorPartScorer {
 
     private rules: WeightedScoringRule<SelectorPart>[];
 
-
     constructor(
         rules: WeightedScoringRule<SelectorPart>[]
     ) {
         this.rules = rules;
     }
 
-
     score(
         part: SelectorPart
     ): SelectorPart {
 
-
         const fragments =
             part.fragments?.map(fragment => {
-
 
                 const partWithFragment = {
                     ...part,
@@ -30,14 +26,12 @@ export class SelectorPartScorer {
                     ]
                 };
 
-
                 const score =
                     this.rules.reduce(
                         (total, { rule, weight }) =>
                             total + rule.apply(partWithFragment) * weight,
                         0
                     );
-
 
                 return {
                     ...fragment,

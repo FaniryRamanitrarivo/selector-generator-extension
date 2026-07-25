@@ -4,7 +4,8 @@ import type { AttributeCandidate } from "../scoring/attribute-candidature";
 
 
 export function extractAttributeCandidates(
-    attributes: DOMAttribute[]
+    attributes: DOMAttribute[],
+    tagName?: string
 ): AttributeCandidate[] {
 
 
@@ -30,7 +31,9 @@ export function extractAttributeCandidates(
 
                 tokens,
 
-                score: 0
+                score: 0,
+
+                tagName
 
             };
 

@@ -1,3 +1,4 @@
+import type { SelectorFragment } from "../selector-fragment";
 import type { SelectorPart } from "../selector-part";
 
 export type BuildedSelector = {
@@ -5,6 +6,8 @@ export type BuildedSelector = {
     selector: string;
 
     score: number;
+
+    fragmentScores: number[];
 
 };
 
@@ -21,65 +24,54 @@ export class SelectorBuilder {
             return [];
         }
 
-
         const lastFragments = lastPart.fragments?.length
             ? lastPart.fragments
             : [undefined];
 
-
         return parts
             .slice(0, -1)
             .flatMap(part => {
-
                 const fragments = part.fragments?.length
                     ? part.fragments
                     : [undefined];
 
-
                 return fragments.flatMap(fragment => {
-
                     let selector = "";
-
-                    let score = 0;
-
+                    const fragmentScores: number[] = [];
 
                     if (part.tagName) {
                         selector += part.tagName;
                     }
 
-
                     if (fragment) {
                         selector += fragment.selector;
-                        score += fragment.score;
+                        fragmentScores.push(fragment.score);
                     }
-
 
                     if (lastPart.tagName) {
                         selector += ` ${lastPart.tagName}`;
                     }
 
-
                     return lastFragments.map(lastFragment => {
+                        const selectorFragments = [...fragmentScores];
 
-                        if (!lastFragment) {
+                        if (lastFragment) {
+                            selectorFragments.push(lastFragment.score);
                             return {
-                                selector,
-                                score
+                                selector: `${selector}${lastFragment.selector}`,
+                                score: 0,
+                                fragmentScores: selectorFragments
                             };
                         }
 
-
                         return {
-                            selector: `${selector}${lastFragment.selector}`,
-                            score: score + lastFragment.score
+                            selector,
+                            score: 0,
+                            fragmentScores: selectorFragments
                         };
-
                     });
-
                 });
-
             });
-
     }
 
 }
