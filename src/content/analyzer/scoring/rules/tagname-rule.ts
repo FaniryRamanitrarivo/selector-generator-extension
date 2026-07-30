@@ -1,3 +1,4 @@
+import type { AttributeCandidate } from "../attribute-candidature";
 import type { ScoringRule } from "../scoring-rule";
 
 const TAG_SCORES = new Map([
@@ -21,13 +22,13 @@ const TAG_SCORES = new Map([
     ["div", 0.1],
 ]);
 
-export class TagNameRule implements ScoringRule {
+export class TagNameRule implements ScoringRule<AttributeCandidate> {
 
-    apply(candidate): number {
+    apply(candidate: AttributeCandidate): number {
 
-        return TAG_SCORES.get(
-            candidate.tagName
-        ) ?? 0;
+        const tagName = candidate.tagName?.toLowerCase();
+
+        return tagName ? TAG_SCORES.get(tagName) ?? 0 : 0;
 
     }
 

@@ -1,5 +1,6 @@
-import type { SelectorFragment } from "../selector-fragment";
 import type { SelectorPart } from "../selector-part";
+
+import type { SelectorEvaluation } from "../selector-evaluation";
 
 export type BuildedSelector = {
 
@@ -8,6 +9,26 @@ export type BuildedSelector = {
     score: number;
 
     fragmentScores: number[];
+
+    evaluation?: SelectorEvaluation;
+
+    debug?: {
+        parentCount?: number;
+        targetCount?: number;
+        semanticScore?: number;
+        uniquenessScore?: number;
+        tagScore?: number;
+        lengthScore?: number;
+        finalScore?: number;
+        ruleContribution?: number;
+        contributions?: Record<string, number>;
+        rawScores?: Record<string, number>;
+        rules?: Record<string, {
+            rawScore: number;
+            weight: number;
+            contribution: number;
+        }>;
+    };
 
 };
 

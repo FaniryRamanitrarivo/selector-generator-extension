@@ -6,4 +6,6 @@ export interface WeightedScoringRule<T> {
 
     weight: number;
 
+    name?: string;
+
 }

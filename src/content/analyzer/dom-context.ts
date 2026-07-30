@@ -39,7 +39,7 @@ export function buildDOMContext(
     const ancestors: ElementNodeContext[] = [];
 
     let parent = element.parentElement;
-    let parentTagName = parent.tagName.toLowerCase();
+    let parentTagName = parent?.tagName?.toLowerCase() ?? "";
 
     while(parent && parentTagName != "body") {
 
@@ -48,7 +48,7 @@ export function buildDOMContext(
         );
 
         parent = parent.parentElement;
-        parentTagName = parent.tagName.toLowerCase();
+        parentTagName = parent?.tagName?.toLowerCase() ?? "";
 
     }
 

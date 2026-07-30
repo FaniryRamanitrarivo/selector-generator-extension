@@ -8,6 +8,9 @@ import type {
     GeneratedSelector
 } from "./generated-selector";
 
+export interface SelectorGenerationOptions {
+    multiResultMode?: boolean;
+}
 
 export class SelectorGenerator {
 
@@ -23,7 +26,8 @@ export class SelectorGenerator {
 
     generate(
         selectors: BuildedSelector[],
-        target: HTMLElement
+        target: HTMLElement,
+        options: SelectorGenerationOptions = {}
     ): GeneratedSelector[] {
 
         return selectors
@@ -44,13 +48,17 @@ export class SelectorGenerator {
 
                     score: selector.score,
 
-                    countScore: 0
+                    countScore: 0,
+                    matchesTarget: result.matchesTarget,
+                    debug: selector.debug
 
                 };
 
             })
             .filter(result => 
-                result.count > 0
+                result.count > 0 && (
+                    options.multiResultMode || result.matchesTarget
+                )
             );
 
     }

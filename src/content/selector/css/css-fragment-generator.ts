@@ -22,6 +22,15 @@ export function generateCSSFragments(
     }
 
     for (const token of candidate.tokens) {
+        if (candidate.name === "class") {
+            fragments.push({
+                selector: `[${candidate.name}~="${token}"]`,
+                score: candidate.score,
+                operator: "containsWord",
+                token
+            });
+        }
+
         fragments.push(
             {
                 selector: `[${candidate.name}*="${token}"]`,
@@ -42,15 +51,6 @@ export function generateCSSFragments(
                 token
             }
         );
-
-        if (candidate.name === "class") {
-            fragments.push({
-                selector: `[${candidate.name}~="${token}"]`,
-                score: candidate.score,
-                operator: "containsWord",
-                token
-            });
-        }
     }
 
     return fragments;

@@ -26,7 +26,7 @@ export class SelectorGenerationPipeline {
     constructor() {
         this.attributeScorer = new AttributeScorer([
             { rule: new CategoryRule(), weight: 50 },
-            { rule: new SemanticAttributeRule(), weight: 30 },
+            { rule: new SemanticAttributeRule(), weight: 40 },
             { rule: new TagNameRule(), weight: 20 }
         ]);
 
@@ -41,16 +41,19 @@ export class SelectorGenerationPipeline {
 
     generate(
         context: DOMContext,
-        target: HTMLElement
+        target: HTMLElement,
+        options: { multiResultMode?: boolean } = {}
     ) {
         const parts = this.buildParts(context);
         const selectors = this.builder.build(parts);
         const scoredSelectors = selectors
             .map(selector => this.selectorScorer.score(selector))
-            .sort((a, b) => b.score - a.score);
+            .sort((a, b) => this.selectorScorer.compare(b, a));
 
-        const generated = this.selectorGenerator.generate(scoredSelectors, target);
-        const normalized = this.countNormalizer.normalize(generated);
+        console.log("scoredSelectors ", scoredSelectors)
+
+        const generated = this.selectorGenerator.generate(scoredSelectors, target, options);
+        const normalized = this.countNormalizer.normalize(generated, options);
 
         return normalized
             .sort((a, b) => b.score - a.score)

@@ -8,4 +8,16 @@ export interface GeneratedSelector {
 
     countScore: number;
 
+    matchesTarget?: boolean;
+
+    debug?: {
+        parentCount?: number;
+        targetCount?: number;
+        semanticScore?: number;
+        uniquenessScore?: number;
+        tagScore?: number;
+        lengthScore?: number;
+        finalScore?: number;
+    };
+
 }

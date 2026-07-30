@@ -1,7 +1,10 @@
 import type { AttributeCandidate } from "@/content/analyzer/scoring/attribute-candidature";
 import type { SelectorFragment } from "@/content/selector/selector-fragment";
+import { clampScore, SCORING_WEIGHTS } from "@/content/scoring/scoring-config";
 
 export class FragmentScorer {
+
+    private readonly matchCache = new Map<string, number>();
 
     score(
         fragment: SelectorFragment,
@@ -15,21 +18,37 @@ export class FragmentScorer {
         const uniquenessScore = this.getUniquenessScore(resultCount);
         const tokenQualityScore = this.getTokenQualityScore(candidate, fragment);
         const stabilityScore = this.getStabilityScore(resultCount, fragment.operator, tagName);
+        const semanticScore = this.getSemanticScore(candidate, fragment);
+        const tagScore = this.getTagScore(tagName);
+
+        const score = clampScore(
+            candidate.score * 0.2 +
+            operatorScore * 0.22 +
+            uniquenessScore * 0.24 +
+            tokenQualityScore * 0.14 +
+            stabilityScore * 0.12 +
+            semanticScore * 0.08 +
+            tagScore * 0.06
+        );
 
         return {
             ...fragment,
             resultCount,
-            score:
-                candidate.score +
-                operatorScore +
-                uniquenessScore +
-                tokenQualityScore +
-                stabilityScore
+            score
         };
     }
 
     private countMatches(selector: string): number {
-        return document.querySelectorAll(selector).length;
+        const cached = this.matchCache.get(selector);
+
+        if (cached !== undefined) {
+            return cached;
+        }
+
+        const count = document.querySelectorAll(selector).length;
+        this.matchCache.set(selector, count);
+
+        return count;
     }
 
     private getOperatorScore(operator?: SelectorFragment["operator"]): number {
@@ -84,7 +103,77 @@ export class FragmentScorer {
             return normalized === token || normalized.includes(token);
         });
 
-        return hasImportantToken ? 0.2 : 0.05;
+        return hasImportantToken ? 0.3 : 0.05;
+    }
+
+    private getSemanticScore(
+        candidate: AttributeCandidate,
+        fragment: SelectorFragment
+    ): number {
+        if (!fragment.token) {
+            return 0;
+        }
+
+        const token = fragment.token.toLowerCase();
+        const importantWords = [
+            "product",
+            "products",
+            "main",
+            "content",
+            "page",
+            "pages",
+            "title",
+            "description",
+            "detail",
+            "details",
+            "information",
+            "info",
+            "price",
+            "image",
+            "images",
+            "gallery",
+            "composition",
+            "cart",
+            "menu",
+            "navigation",
+            "header",
+            "footer",
+            "sidebar",
+            "category",
+            "brand",
+            "manufacturer",
+            "section",
+            "summary"
+        ];
+
+        if (importantWords.some(word => token === word || token.includes(word))) {
+            return 0.35;
+        }
+
+        if (candidate.value?.toLowerCase().includes(token)) {
+            return 0.15;
+        }
+
+        return 0;
+    }
+
+    private getTagScore(tagName?: string): number {
+        if (!tagName) {
+            return 0;
+        }
+
+        switch (tagName.toLowerCase()) {
+            case "main":
+            case "section":
+            case "article":
+            case "nav":
+            case "header":
+            case "footer":
+            case "aside":
+                return 0.15;
+            default:
+                return 0;
+        }
     }
 
     private getStabilityScore(

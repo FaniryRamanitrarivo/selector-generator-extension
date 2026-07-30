@@ -1,4 +1,3 @@
-import { analyzeElement } from "../analyzer/element-analyzer";
 import {
     highlight,
     removeHighlight

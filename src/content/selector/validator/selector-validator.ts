@@ -14,7 +14,7 @@ export class SelectorValidator {
 
     validate(
         selector: string,
-        target: HTMLElement = null
+        target: HTMLElement | null = null
     ): SelectorValidationResult {
 
         const elements = document.querySelectorAll(selector);
