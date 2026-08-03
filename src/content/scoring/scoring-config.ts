@@ -11,7 +11,8 @@ export const SCORING_WEIGHTS = {
         tokenQuality: 0.12,
         stability: 0.1,
         semantic: 0.08,
-        tagContext: 0.04
+        tagContext: 0.04,
+        concision: 0.1
     },
     selector: {
         readability: 0.18,
@@ -31,7 +32,13 @@ export const SCORING_WEIGHTS = {
     },
     countNormalization: {
         singleResult: 1,
-        multiResult: 0.25
+        multiResult: 0.25,
+        // multiResultMode: a selector matching exactly 1 element misses the point (the goal
+        // is to select several), so it's floored below every count > 1. Among count > 1
+        // selectors, fewer matches is better (tighter, more precise group) — see
+        // SelectorCountNormalizer.getMultiResultCountScore for how these combine.
+        multiResultSingleMatchFloor: 0.1,
+        multiResultMatchRange: 0.9
     }
 } as const;
 

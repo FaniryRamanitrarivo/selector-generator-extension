@@ -55,10 +55,10 @@ export class SelectorGenerator {
                 };
 
             })
-            .filter(result => 
-                result.count > 0 && (
-                    options.multiResultMode || result.matchesTarget
-                )
+            .filter(result =>
+                result.count > 0 &&
+                result.matchesTarget &&
+                (options.multiResultMode || result.count === 1)
             );
 
     }

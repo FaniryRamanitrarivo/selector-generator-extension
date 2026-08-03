@@ -21,8 +21,9 @@ export class SelectorValidator {
 
         const count = elements.length;
 
-        const matchesTarget = count === 1 && 
-                (target ? elements[0] === target: true);
+        const matchesTarget = target
+            ? Array.from(elements).includes(target)
+            : count > 0;
 
 
         return {

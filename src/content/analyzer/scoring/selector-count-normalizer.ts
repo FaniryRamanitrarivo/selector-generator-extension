@@ -11,7 +11,7 @@ export class SelectorCountNormalizer {
 
         return selectors.map(selector => {
             const countScore = options.multiResultMode
-                ? 1 / Math.max(1, selector.count)
+                ? this.getMultiResultCountScore(selector.count)
                 : selector.count === 1
                     ? SCORING_WEIGHTS.countNormalization.singleResult
                     : SCORING_WEIGHTS.countNormalization.multiResult;
@@ -22,6 +22,19 @@ export class SelectorCountNormalizer {
                 score: selector.score * countScore
             };
         });
+    }
+
+    // Guarantees any count > 1 outscores a count of 1: the multi-match term is strictly
+    // positive and added on top of the single-match floor, so it can only push the score
+    // above that floor, never below it — while still ranking fewer matches higher than more.
+    private getMultiResultCountScore(count: number): number {
+        const { multiResultSingleMatchFloor, multiResultMatchRange } = SCORING_WEIGHTS.countNormalization;
+
+        if (count <= 1) {
+            return multiResultSingleMatchFloor;
+        }
+
+        return multiResultSingleMatchFloor + multiResultMatchRange / count;
     }
 
 }

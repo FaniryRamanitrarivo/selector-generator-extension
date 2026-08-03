@@ -8,15 +8,11 @@
     "build:firefox:bg": "vite build --config configs/vite.firefox.background.ts",
     "build:firefox:content": "vite build --config configs/vite.firefox.scripts.ts",
     "build:firefox:manifest": "tsx scripts/build-manifest.ts firefox",
-
     "build:firefox": "npm run build:firefox:ui && npm run build:firefox:bg && npm run build:firefox:content && npm run build:firefox:manifest",
-
     "watch:firefox:ui": "vite build --watch --config configs/vite.firefox.ts",
     "watch:firefox:bg": "vite build --watch --config configs/vite.firefox.background.ts",
     "watch:firefox:content": "vite build --watch --config configs/vite.firefox.scripts.ts",
-
     "dev:firefox": "npm run build:firefox && concurrently -n UI,BG,CONTENT \"npm:watch:firefox:ui\" \"npm:watch:firefox:bg\" \"npm:watch:firefox:content\""
-  
   },
   "dependencies": {
     "react": "^19.2.7",
@@ -26,7 +22,9 @@
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.7.1",
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/firefox-webext-browser": "^143.0.0",
+    "@types/jsdom": "^28.0.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -38,6 +36,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
+    "jsdom": "^30.0.1",
+    "tailwindcss": "^4.3.3",
     "tsx": "^4.23.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.62.0",

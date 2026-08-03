@@ -6,6 +6,9 @@ import type {
 
 
 const IMPORTANT_WORDS = new Set([
+    "sku",
+    "size",
+    "color",
     "product",
     "products",
     "title",
@@ -25,8 +28,6 @@ const IMPORTANT_WORDS = new Set([
     "container",
     "composition",
     "care",
-    "size",
-    "color",
     "button",
     "menu",
     "cart",

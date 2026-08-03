@@ -1,10 +1,9 @@
-import type { DOMContext } from "../../analyzer/dom-context";
-import { extractAttributeCandidates } from "../../analyzer/candidates/attribute-candidate-extractor";
+import type { DOMContext, ElementNodeContext } from "../../analyzer/dom-context";
+import { buildNodeFragmentCandidates } from "../../analyzer/candidates/node-fragment-candidates";
 import { AttributeScorer } from "../../analyzer/scoring/attribute-scorer";
 import { CategoryRule } from "@/content/analyzer/scoring/rules/category-rule";
 import { SemanticAttributeRule } from "@/content/analyzer/scoring/rules/semantic-attribute-rule";
 import { TagNameRule } from "@/content/analyzer/scoring/rules/tagname-rule";
-import { generateCSSFragments } from "../css/css-fragment-generator";
 import { FragmentScorer } from "../scoring/fragment-scorer";
 import { SelectorBuilder } from "../builder/selector-builder";
 import { SelectorGenerator } from "../selector-generator";
@@ -12,6 +11,7 @@ import { SelectorValidator } from "../validator/selector-validator";
 import { SelectorScorer } from "@/content/analyzer/scoring/selector-scorer";
 import { SelectorLengthRule } from "@/content/analyzer/scoring/rules/selector-length-rule";
 import { SelectorCountNormalizer } from "@/content/analyzer/scoring/selector-count-normalizer";
+import { ContainerSelector } from "../container/container-selector";
 import type { SelectorPart } from "../selector-part";
 
 export class SelectorGenerationPipeline {
@@ -22,6 +22,7 @@ export class SelectorGenerationPipeline {
     private readonly selectorGenerator: SelectorGenerator;
     private readonly selectorScorer: SelectorScorer;
     private readonly countNormalizer: SelectorCountNormalizer;
+    private readonly containerSelector: ContainerSelector;
 
     constructor() {
         this.attributeScorer = new AttributeScorer([
@@ -37,6 +38,7 @@ export class SelectorGenerationPipeline {
             { rule: new SelectorLengthRule(), weight: 5 }
         ]);
         this.countNormalizer = new SelectorCountNormalizer();
+        this.containerSelector = new ContainerSelector(this.attributeScorer, this.fragmentScorer);
     }
 
     generate(
@@ -44,13 +46,18 @@ export class SelectorGenerationPipeline {
         target: HTMLElement,
         options: { multiResultMode?: boolean } = {}
     ) {
-        const parts = this.buildParts(context);
+        const targetPart = this.buildTargetPart(context.element, options.multiResultMode ?? false);
+        const containerSelection = this.containerSelector.select(context);
+        const parts: SelectorPart[] = containerSelection
+            ? [containerSelection.part, targetPart]
+            : [targetPart];
+
         const selectors = this.builder.build(parts);
         const scoredSelectors = selectors
             .map(selector => this.selectorScorer.score(selector))
             .sort((a, b) => this.selectorScorer.compare(b, a));
 
-        console.log("scoredSelectors ", scoredSelectors)
+        console.log("scoredSelectors = ", scoredSelectors)
 
         const generated = this.selectorGenerator.generate(scoredSelectors, target, options);
         const normalized = this.countNormalizer.normalize(generated, options);
@@ -60,29 +67,15 @@ export class SelectorGenerationPipeline {
             .slice(0, 100);
     }
 
-    private buildParts(context: DOMContext): SelectorPart[] {
-        return [...[...context.ancestors].reverse(), context.element].map(node => {
-            const candidates = extractAttributeCandidates(node.attributes, node.tagname)
-                .map(candidate => this.attributeScorer.score(candidate));
+    private buildTargetPart(node: ElementNodeContext, multiResultMode: boolean): SelectorPart {
+        const fragments = buildNodeFragmentCandidates(node, this.attributeScorer, this.fragmentScorer, multiResultMode)
+            .map(({ fragment }) => fragment)
+            .slice(0, 5);
 
-            const bestCandidates = [...candidates]
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 3);
-
-            const fragments = bestCandidates
-                .flatMap(candidate =>
-                    generateCSSFragments(candidate).map(fragment =>
-                        this.fragmentScorer.score(fragment, candidate, node.tagname)
-                    )
-                )
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 5);
-
-            return {
-                tagName: node.tagname,
-                fragments,
-                score: 0
-            };
-        });
+        return {
+            tagName: node.tagname,
+            fragments,
+            score: 0
+        };
     }
 }

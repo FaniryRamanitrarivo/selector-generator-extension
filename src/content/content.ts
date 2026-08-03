@@ -3,7 +3,8 @@ import {
 } from "@/messaging/messages";
 
 import {
-    startInspection
+    startInspection,
+    stopInspection
 } from "./inspector/inspector";
 
 
@@ -23,7 +24,14 @@ browser.runtime.onMessage.addListener(
 
             case MessageType.START_INSPECTION:
 
-                startInspection();
+                startInspection(message.payload as { multiResultMode?: boolean } | undefined);
+
+                break;
+
+
+            case MessageType.STOP_INSPECTION:
+
+                stopInspection();
 
                 break;
 

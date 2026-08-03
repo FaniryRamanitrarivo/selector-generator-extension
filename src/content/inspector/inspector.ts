@@ -19,6 +19,7 @@ import {
 
 
 let active = false;
+let inspectionOptions: { multiResultMode?: boolean } = {};
 
 function mouseMove(
     event: MouseEvent
@@ -50,7 +51,7 @@ function click(
 
     const pipeline = new SelectorGenerationPipeline();
 
-    const result = pipeline.generate(context, target);
+    const result = pipeline.generate(context, target, inspectionOptions);
 
     console.log("result == ", result)
 
@@ -66,13 +67,16 @@ function click(
 
 }
 
-export function startInspection() {
+export function startInspection(
+    options: { multiResultMode?: boolean } = {}
+) {
 
 
-    if(active) 
+    if(active)
         return;
 
     active = true;
+    inspectionOptions = options;
 
     document.addEventListener(
         "mousemove",

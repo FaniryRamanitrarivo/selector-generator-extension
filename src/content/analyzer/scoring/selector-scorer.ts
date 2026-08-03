@@ -31,8 +31,8 @@ const READABILITY = {
     COVERAGE_BONUS_MAX: 0.10,
     NON_SEMANTIC_FRAGMENT_PENALTY: 0.025,
     ATTRIBUTE_BONUS: {
-        EXACT_CLASS_TOKEN: 0.06, // [class~="content"]
-        EXACT_IDENTIFIER: 0.04,  // [id="content"] / [class="content"]
+        EXACT_IDENTIFIER: 0.06,  // [id="content"]
+        EXACT_CLASS_TOKEN: 0.04, // [class~="content"]
         PREFIX_SUFFIX: 0.025,    // [class^="..."] / [class$="..."]
         CONTAINS: 0.01           // [class*="..."]
     }
@@ -42,7 +42,7 @@ const READABILITY = {
 const GENERATED_IDENTIFIER_PATTERN =
     /(?:css|react|chakra|mui|mantine|ember|vue|next|[a-f0-9]{6,}|uuid)/;
 
-const STRUCTURAL_TAG_PATTERN = /\b(main|section|article|nav|header|footer|aside)\b/;
+const STRUCTURAL_TAG_PATTERN = /\b(main|section|fieldset|article|nav|header|footer|aside)\b/;
 const EXPLICIT_IDENTIFIER_PATTERN = /\[(id|class)[^\]]*(=|~|\^|\$|\*)/;
 
 const CONCISION_THRESHOLDS = [
@@ -96,7 +96,8 @@ const SEMANTIC_TOKEN_LEVELS: Record<string, number> = {
     // category) belong here too — they're just as precise as price/title.
     product: 3, products: 3, item: 3, items: 3, title: 3, name: 3,
     price: 3, description: 3, category: 3, brand: 3, manufacturer: 3,
-    composition: 3, care: 3
+    composition: 3, care: 3, size: 3, taille: 3, talla: 3,
+    color: 3, colour: 3, couleur: 3
 };
 
 const SEMANTIC_TOKEN_PATTERN = new RegExp(
@@ -554,7 +555,11 @@ export class SelectorScorer {
         const fullScore = this.getMatchCountScore(fullMatchCount);
         if (parts.length === 1) return fullScore;
 
-        // Evaluate each container prefix separately.
+        // Evaluate each container prefix separately. Container selection now happens
+        // deterministically upstream (ContainerSelector), so `selector.selector` is
+        // always at most 2 space-separated parts and this loop runs 0-or-1 times —
+        // still correct, but the averaging below is effectively vestigial and could
+        // be simplified in a follow-up.
         let currentSelector = "";
         let containerScore = 0;
         let containerCount = 0;

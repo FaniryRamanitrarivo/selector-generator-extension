@@ -49,6 +49,17 @@ export class SelectorBuilder {
             ? lastPart.fragments
             : [undefined];
 
+        if (parts.length === 1) {
+            // No container was chosen — target-only selectors.
+            return lastFragments.map(fragment => ({
+                selector: fragment
+                    ? `${lastPart.tagName ?? ""}${fragment.selector}`
+                    : (lastPart.tagName ?? ""),
+                score: 0,
+                fragmentScores: fragment ? [fragment.score] : []
+            }));
+        }
+
         return parts
             .slice(0, -1)
             .flatMap(part => {

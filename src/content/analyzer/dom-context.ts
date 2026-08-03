@@ -8,6 +8,15 @@ export interface ElementNodeContext {
         typeof extractAttributes
     >;
 
+    // The live DOM node this context was built from. Lets consumers (e.g.
+    // ContainerSelector) verify that a selector fragment which is unique on the page
+    // (count === 1) actually resolves back to *this* node — a token derived from this
+    // node's own attributes can coincidentally also be a unique match elsewhere on the
+    // page (e.g. the same "section" class reused site-wide), in which case the single
+    // match is the wrong element entirely. Optional so hand-built test fixtures that
+    // don't need this check (and mock document.querySelectorAll wholesale) still work.
+    element?: HTMLElement;
+
 }
 
 export interface DOMContext {
@@ -20,13 +29,15 @@ export interface DOMContext {
 
 function mapElement(
     element: HTMLElement
-) {
+): ElementNodeContext {
 
     return {
 
         tagname: element.tagName.toLowerCase(),
 
-        attributes: extractAttributes(element)
+        attributes: extractAttributes(element),
+
+        element
 
     };
 
