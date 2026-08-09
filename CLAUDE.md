@@ -104,10 +104,23 @@ element, it:
      scored by `FragmentScorer` (queries `document.querySelectorAll` to weigh uniqueness of that fragment
      alone). For the target part, the top 5 scored fragments survive.
 1b. **Container selection** (`selector/container/container-selector.ts`, `ContainerSelector.select()`)
-   walks `context.ancestors` nearest-parent-first and, for each ancestor, takes its single best-scoring
-   `buildNodeFragmentCandidates` result and stops at the first one that is both uniquely matching
-   (`SelectorValidator`, `count === 1`) and clears a semantic-sectioning threshold — see "Container
-   semantics" above for the fallback behavior when nothing clears the threshold or nothing is unique.
+   runs in up to two passes over `context.ancestors` (nearest-parent-first). **Pass 1 (mono-attribute)**:
+   for each ancestor, walks its `buildNodeFragmentCandidates` results looking for the first fragment
+   that both uniquely matches the page (`SelectorValidator`, `count === 1`) *and* resolves back to that
+   exact ancestor node (guards against a token that's coincidentally unique elsewhere, e.g. a shared
+   `class="section"` wrapper — see the `container-selector-identity.test.ts` regression). If that
+   ancestor's sectioning score (see "Container semantics") clears `CONTAINER_SEMANTIC_THRESHOLD`, it's
+   returned immediately; otherwise it's kept as a fallback candidate and the walk continues outward.
+   **Pass 2 (combined-attribute fallback)**: only runs if pass 1 finishes without any ancestor clearing
+   the threshold. Re-walks the same ancestors, this time pairing up to `MAX_COMBINED_FRAGMENT_CANDIDATES`
+   of each ancestor's top fragments into 2-attribute selectors (e.g. `[class*="details"][class*="title"]`)
+   and retrying uniqueness — this is what rescues the case where no single attribute is unique alone but
+   two together are. A mono match found in pass 1, even below-threshold, still wins over a pass-2 result
+   with an equal or lower sectioning score (pass 1 always runs to completion first, regardless of
+   ancestor proximity — see the "prefers a farther single-attribute ancestor" test in
+   `container-selector-combined-fragments.test.ts`). If neither pass finds a qualifying match, the best
+   unique-but-non-semantic candidate seen across both passes is returned; if nothing was ever unique, no
+   container is used — see "Container semantics" above for the full fallback rationale.
 2. **`SelectorBuilder.build()`** (`selector/builder/selector-builder.ts`) joins the chosen container's
    `tagName`+fragment onto every target-node `tagName`+fragment combination, producing full
    descendant-combinator selector strings (e.g. `main[id="x"] div[class~="y"]`) — or, when no container

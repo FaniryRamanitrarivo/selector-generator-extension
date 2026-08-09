@@ -16,7 +16,7 @@ browser.runtime.onMessage.addListener(
         switch(message.type) {
 
 
-            case MessageType.START_INSPECTION:
+            case MessageType.START_INSPECTION: {
 
                 const tabs =
                     await browser.tabs.query({
@@ -39,6 +39,8 @@ browser.runtime.onMessage.addListener(
                 );
 
                 break;
+
+            }
 
 
             case MessageType.ELEMENT_SELECTED:

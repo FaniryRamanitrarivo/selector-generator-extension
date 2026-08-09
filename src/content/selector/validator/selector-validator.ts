@@ -17,7 +17,18 @@ export class SelectorValidator {
         target: HTMLElement | null = null
     ): SelectorValidationResult {
 
-        const elements = document.querySelectorAll(selector);
+        let elements: NodeListOf<Element>;
+
+        try {
+            elements = document.querySelectorAll(selector);
+        } catch {
+            return {
+                selector,
+                count: 0,
+                matchesTarget: false,
+                isValid: false
+            };
+        }
 
         const count = elements.length;
 

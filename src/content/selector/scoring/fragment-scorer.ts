@@ -48,7 +48,13 @@ export class FragmentScorer {
             return cached;
         }
 
-        const count = document.querySelectorAll(selector).length;
+        let count: number;
+        try {
+            count = document.querySelectorAll(selector).length;
+        } catch {
+            count = 0;
+        }
+
         this.matchCache.set(selector, count);
 
         return count;
