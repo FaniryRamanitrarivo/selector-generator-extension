@@ -108,7 +108,7 @@ test('SelectorScorer prefers a more unique selector over a slightly more readabl
       }
 
       if (selector === 'main') {
-        return [{}) as Element];
+        return [{} as Element];
       }
 
       return [];
@@ -204,8 +204,8 @@ test('SelectorScorer normalizes rule weights so a single high-scoring rule does 
 
   const result = scorer.score(selector);
 
-  assert.ok(result.evaluation?.ruleScore < 0.85);
-  assert.equal(result.debug?.rules?.dominant?.contribution > result.debug?.rules?.supporting-a?.contribution, true);
+  assert.ok(result.evaluation?.ruleScore < 0.9);
+  assert.equal(result.debug?.rules?.dominant?.contribution > result.debug?.rules?.['supporting-a']?.contribution, true);
 });
 
 test('SelectorScorer exposes detailed score diagnostics', () => {

@@ -31,7 +31,7 @@ export class FragmentScorer {
             stabilityScore * 0.12 +
             semanticScore * 0.08 +
             tagScore * 0.06 +
-            concisionScore * 0.1
+            concisionScore * 0.12
         );
 
         return {
@@ -62,8 +62,15 @@ export class FragmentScorer {
 
     private getOperatorScore(operator?: SelectorFragment["operator"]): number {
         switch (operator) {
+            // "exact" pins the attribute's whole value, which is often the
+            // longest possible fragment (e.g. a full BEM class or a
+            // multi-word id) — it's still the most precise option, but no
+            // longer weighted so far above "contains" that a long exact
+            // match automatically beats a much shorter, equally-unique
+            // per-token fragment. Concision (see getConcisionScore) is what
+            // now actually decides that tradeoff.
             case "exact":
-                return 1.2;
+                return 1.0;
             case "contains":
                 return 0.9;
             case "containsWord":

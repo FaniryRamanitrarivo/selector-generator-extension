@@ -21,11 +21,6 @@ const IMPORTANT_WORDS = new Set([
     "detail",
     "information",
     "info",
-    "content",
-    "main",
-    "page",
-    "pages",
-    "container",
     "composition",
     "care",
     "button",
@@ -42,7 +37,25 @@ const IMPORTANT_WORDS = new Set([
     "navigation",
     "header",
     "footer",
-    "sidebar",
+    "sidebar"
+]);
+
+// Generic layout/wrapper words: they show up on almost any container div
+// (class="content-wrapper", class="page-container", ...) without identifying
+// a specific logical section, so unlike IMPORTANT_WORDS they must not be
+// able to single-handedly clear CONTAINER_SEMANTIC_THRESHOLD on their own —
+// otherwise the nearest such wrapper up the ancestor chain hijacks container
+// selection before a farther-but-actually-specific ancestor (or a 2-attribute
+// combination, see ContainerSelector.selectWithCombinedFragments) is ever
+// tried. Kept as a *weaker* signal rather than dropped entirely: paired with
+// a real IMPORTANT_WORDS token (e.g. "product content") they still add up to
+// a legitimate section boundary.
+const STRUCTURAL_WORDS = new Set([
+    "content",
+    "main",
+    "page",
+    "pages",
+    "container",
     "section",
     "summary",
     "overview"
@@ -59,6 +72,15 @@ const GENERATED_ID_PATTERNS = [
 export class SemanticAttributeRule
     implements ScoringRule<AttributeCandidate> {
 
+    // Whether a single token is, on its own, a business/content-specific word
+    // (as opposed to a generic STRUCTURAL_WORDS layout term or an unrecognized
+    // one). Used by ContainerSelector to decide whether a fragment matching
+    // only this token may still borrow semantic credit from sibling tokens on
+    // the same attribute that don't actually appear in that fragment's
+    // selector text.
+    isSignificantToken(token: string): boolean {
+        return IMPORTANT_WORDS.has(token.toLowerCase());
+    }
 
     apply(
         candidate: AttributeCandidate
@@ -80,10 +102,20 @@ export class SemanticAttributeRule
                 return total + 1.1;
             }
 
+            if (STRUCTURAL_WORDS.has(token)) {
+                return total + 0.4;
+            }
+
             const containsImportantWord = [...IMPORTANT_WORDS].some(word => token.includes(word));
 
             if (containsImportantWord) {
                 return total + 0.55;
+            }
+
+            const containsStructuralWord = [...STRUCTURAL_WORDS].some(word => token.includes(word));
+
+            if (containsStructuralWord) {
+                return total + 0.2;
             }
 
             return total;
@@ -122,9 +154,20 @@ export class SemanticAttributeRule
                 continue;
             }
 
+            if (STRUCTURAL_WORDS.has(word)) {
+                semanticScore += 0.25;
+                continue;
+            }
+
             const containsImportantWord = [...IMPORTANT_WORDS].some(important => word.includes(important));
             if (containsImportantWord) {
                 semanticScore += 0.35;
+                continue;
+            }
+
+            const containsStructuralWord = [...STRUCTURAL_WORDS].some(structural => word.includes(structural));
+            if (containsStructuralWord) {
+                semanticScore += 0.12;
             }
         }
 
