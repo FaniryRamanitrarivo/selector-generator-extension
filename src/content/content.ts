@@ -4,7 +4,9 @@ import {
 
 import {
     startInspection,
-    stopInspection
+    stopInspection,
+    setSelectionIndex,
+    type InspectionOptions
 } from "./inspector/inspector";
 
 
@@ -24,7 +26,7 @@ browser.runtime.onMessage.addListener(
 
             case MessageType.START_INSPECTION:
 
-                startInspection(message.payload as { multiResultMode?: boolean } | undefined);
+                startInspection(message.payload as InspectionOptions | undefined);
 
                 break;
 
@@ -32,6 +34,13 @@ browser.runtime.onMessage.addListener(
             case MessageType.STOP_INSPECTION:
 
                 stopInspection();
+
+                break;
+
+
+            case MessageType.SET_SELECTION_INDEX:
+
+                setSelectionIndex(message.payload as number);
 
                 break;
 

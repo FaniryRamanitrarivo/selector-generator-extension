@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { MessageType } from "@/messaging/messages";
 import { sendMessage } from "@/messaging/messenger";
 import type { GeneratedSelector } from "@/content/selector/generated-selector";
+import type { SelectionState } from "@/content/inspector/inspector";
 
 const MAX_ALTERNATIVES = 5;
 
@@ -10,16 +11,27 @@ export default function App() {
 
     const [inspecting, setInspecting] = useState(false);
     const [multiResultMode, setMultiResultMode] = useState(false);
+    const [devMode, setDevMode] = useState(false);
     const [results, setResults] = useState<GeneratedSelector[]>([]);
     const [copiedSelector, setCopiedSelector] = useState<string | null>(null);
+    const [selection, setSelection] = useState<SelectionState | null>(null);
 
     useEffect(() => {
 
-        const listener = (message: { type?: string; payload?: GeneratedSelector[] }) => {
+        const listener = (message: { type?: string; payload?: unknown }) => {
 
             if (message.type === MessageType.ELEMENT_SELECTED) {
-                setResults(message.payload ?? []);
+                setResults((message.payload as GeneratedSelector[]) ?? []);
                 setInspecting(false);
+            }
+
+            if (message.type === MessageType.SELECTION_CHANGED) {
+                setSelection(message.payload as SelectionState);
+            }
+
+            if (message.type === MessageType.INSPECTION_CANCELLED) {
+                setInspecting(false);
+                setSelection(null);
             }
 
         };
@@ -30,14 +42,38 @@ export default function App() {
 
     }, []);
 
+    // Dev mode is a standing preference (like a devtools setting), not a
+    // per-inspection choice — persisted so it survives the sidebar panel
+    // being unmounted/remounted across tab switches.
+    useEffect(() => {
+
+        browser.storage.local.get("devMode").then(stored => {
+            if (typeof stored.devMode === "boolean") {
+                setDevMode(stored.devMode);
+            }
+        });
+
+    }, []);
+
+    function toggleDevMode() {
+
+        setDevMode(value => {
+            const next = !value;
+            browser.storage.local.set({ devMode: next });
+            return next;
+        });
+
+    }
+
     function startInspection() {
 
         setResults([]);
+        setSelection(null);
         setInspecting(true);
 
         sendMessage({
             type: MessageType.START_INSPECTION,
-            payload: { multiResultMode }
+            payload: { multiResultMode, devMode }
         });
 
     }
@@ -45,9 +81,19 @@ export default function App() {
     function cancelInspection() {
 
         setInspecting(false);
+        setSelection(null);
 
         sendMessage({
             type: MessageType.STOP_INSPECTION
+        });
+
+    }
+
+    function selectBreadcrumbNode(index: number) {
+
+        sendMessage({
+            type: MessageType.SET_SELECTION_INDEX,
+            payload: index
         });
 
     }
@@ -76,6 +122,34 @@ export default function App() {
             </header>
 
             <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+
+                <label className="flex cursor-pointer items-start justify-between gap-3">
+                    <span>
+                        <span className="block text-sm font-medium text-slate-800">
+                            Mode développeur
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                            Ajustez l'élément ciblé avec les flèches (↑ parent / ↓ enfant) avant de valider.
+                        </span>
+                    </span>
+
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={devMode}
+                        disabled={inspecting}
+                        onClick={toggleDevMode}
+                        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                            devMode ? "bg-blue-600" : "bg-slate-300"
+                        }`}
+                    >
+                        <span
+                            className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                devMode ? "translate-x-5" : "translate-x-0"
+                            }`}
+                        />
+                    </button>
+                </label>
 
                 <label className="flex cursor-pointer items-start justify-between gap-3">
                     <span>
@@ -119,8 +193,51 @@ export default function App() {
                 {inspecting && (
                     <p className="flex items-center gap-2 text-xs text-slate-500">
                         <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
-                        En attente d'un clic sur la page...
+                        {devMode
+                            ? "Cliquez sur un élément, ajustez avec ↑ / ↓, validez avec ↵."
+                            : "En attente d'un clic sur la page..."}
                     </p>
+                )}
+
+                {devMode && inspecting && selection && selection.path.length > 0 && (
+                    <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 p-2">
+
+                        <span className="text-xs font-medium text-slate-500">
+                            Élément ciblé
+                        </span>
+
+                        <ul className="flex flex-col gap-0.5">
+                            {selection.path
+                                .map((node, originalIndex) => ({ node, originalIndex }))
+                                .reverse()
+                                .map(({ node, originalIndex }) => {
+
+                                    const depth = selection.path.length - 1 - originalIndex;
+                                    const isActive = originalIndex === selection.index;
+                                    const label = `${node.tagName}${node.id ? `#${node.id}` : ""}${
+                                        node.classes.length ? `.${node.classes.join(".")}` : ""
+                                    }`;
+
+                                    return (
+                                        <li key={originalIndex} style={{ paddingLeft: `${depth * 12}px` }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => selectBreadcrumbNode(originalIndex)}
+                                                className={`block w-full truncate rounded-md px-2 py-1 text-left font-mono text-xs transition-colors ${
+                                                    isActive
+                                                        ? "bg-blue-600 text-white"
+                                                        : "text-slate-600 hover:bg-slate-200"
+                                                }`}
+                                            >
+                                                {label}
+                                            </button>
+                                        </li>
+                                    );
+
+                                })}
+                        </ul>
+
+                    </div>
                 )}
 
             </section>

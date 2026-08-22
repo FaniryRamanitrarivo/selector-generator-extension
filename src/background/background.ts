@@ -8,6 +8,33 @@ console.log(
 );
 
 
+async function relayToActiveTab(
+    message: unknown
+) {
+
+    const tabs =
+        await browser.tabs.query({
+            active: true,
+            currentWindow: true
+        });
+
+
+    const tab = tabs[0];
+
+
+    if(!tab.id) {
+        return;
+    }
+
+
+    await browser.tabs.sendMessage(
+        tab.id,
+        message
+    );
+
+}
+
+
 browser.runtime.onMessage.addListener(
     async (
         message
@@ -16,34 +43,39 @@ browser.runtime.onMessage.addListener(
         switch(message.type) {
 
 
-            case MessageType.START_INSPECTION: {
+            case MessageType.START_INSPECTION:
 
-                const tabs =
-                    await browser.tabs.query({
-                        active: true,
-                        currentWindow: true
-                    });
+                await relayToActiveTab(message);
+
+                break;
 
 
-                const tab = tabs[0];
+            case MessageType.SET_SELECTION_INDEX:
+
+                await relayToActiveTab(message);
+
+                break;
 
 
-                if(!tab.id) {
-                    return;
-                }
+            case MessageType.ELEMENT_SELECTED:
 
-
-                await browser.tabs.sendMessage(
-                    tab.id,
+                await browser.runtime.sendMessage(
                     message
                 );
 
                 break;
 
-            }
+
+            case MessageType.SELECTION_CHANGED:
+
+                await browser.runtime.sendMessage(
+                    message
+                );
+
+                break;
 
 
-            case MessageType.ELEMENT_SELECTED:
+            case MessageType.INSPECTION_CANCELLED:
 
                 await browser.runtime.sendMessage(
                     message

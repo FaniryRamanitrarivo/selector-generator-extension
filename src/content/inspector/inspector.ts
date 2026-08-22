@@ -18,7 +18,23 @@ import {
 } from "@/messaging/messages";
 
 
-type InspectionOptions = { multiResultMode?: boolean };
+export type InspectionOptions = { multiResultMode?: boolean; devMode?: boolean };
+
+// Lightweight, serializable stand-in for an HTMLElement — the sidebar lives
+// in a separate JS context and can't hold a live DOM reference, so this is
+// what actually crosses the messaging boundary (see broadcastSelection).
+export interface SelectionNode {
+    tagName: string;
+    id?: string;
+    classes: string[];
+}
+
+export interface SelectionState {
+    // Nearest-first, same order/indexing as selectionPath: path[0] is the
+    // originally clicked element, path[path.length - 1] is <body>.
+    path: SelectionNode[];
+    index: number;
+}
 
 let active = false;
 let inspectionOptions: InspectionOptions = {};
@@ -88,8 +104,51 @@ function describeSelection(): string {
 
 }
 
+function toSelectionNode(element: HTMLElement): SelectionNode {
+    return {
+        tagName: element.tagName.toLowerCase(),
+        id: element.id || undefined,
+        classes: Array.from(element.classList)
+    };
+}
+
+// Only ever called from the dev-mode adjustment path (updateSelectionHighlight),
+// so the sidebar's breadcrumb view naturally stays empty outside dev mode.
+function broadcastSelection() {
+
+    browser.runtime.sendMessage({
+
+        type: MessageType.SELECTION_CHANGED,
+
+        payload: {
+            path: selectionPath.map(toSelectionNode),
+            index: selectionIndex
+        } satisfies SelectionState
+
+    });
+
+}
+
 function updateSelectionHighlight() {
     highlight(selectionPath[selectionIndex], describeSelection());
+    broadcastSelection();
+}
+
+// Invoked when the sidebar's breadcrumb view is clicked — lets the user jump
+// straight to an ancestor instead of repeatedly pressing ArrowUp/ArrowDown.
+export function setSelectionIndex(index: number) {
+
+    if (!selectionPath.length) {
+        return;
+    }
+
+    if (index < 0 || index >= selectionPath.length) {
+        return;
+    }
+
+    selectionIndex = index;
+    updateSelectionHighlight();
+
 }
 
 function confirmSelection() {
@@ -136,6 +195,17 @@ function click(
 
     const target =
         event.target as HTMLElement;
+
+    // Arrow-key adjustment requires knowing the DOM well enough to pick a
+    // meaningful ancestor over the exact element under the cursor — a
+    // non-dev user has no way to make that call, so outside dev mode a
+    // click confirms the clicked element immediately, as before.
+    if (!inspectionOptions.devMode) {
+        selectionPath = [target];
+        selectionIndex = 0;
+        confirmSelection();
+        return;
+    }
 
     selectionPath = buildSelectionPath(target);
     selectionIndex = 0;
@@ -185,7 +255,11 @@ function keyDown(
 
         case "Escape":
             event.preventDefault();
-            stopInspection();
+            // Stopping here is the content script's own initiative, not the
+            // sidebar's (that's STOP_INSPECTION) nor a successful pick
+            // (that's ELEMENT_SELECTED) — the sidebar has no other way to
+            // learn about it, so it must be told explicitly.
+            stopInspection(true);
             break;
 
     }
@@ -219,7 +293,11 @@ export function startInspection(
 
 }
 
-export function stopInspection() {
+export function stopInspection(
+    notifyCancelled = false
+) {
+
+    const wasActive = active;
 
     active = false;
     selectionPath = [];
@@ -244,5 +322,11 @@ export function stopInspection() {
         keyDown,
         true
     );
+
+    if (notifyCancelled && wasActive) {
+        browser.runtime.sendMessage({
+            type: MessageType.INSPECTION_CANCELLED
+        });
+    }
 
 }

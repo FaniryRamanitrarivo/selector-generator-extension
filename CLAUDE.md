@@ -61,24 +61,48 @@ already a devDependency and honors `tsconfig.json` paths).
 ### Extension messaging flow
 
 Three isolated JS contexts talk via `browser.runtime` messages typed in `src/messaging/messages.ts`
-(`MessageType`: `START_INSPECTION`, `STOP_INSPECTION`, `ELEMENT_SELECTED`):
+(`MessageType`: `START_INSPECTION`, `STOP_INSPECTION`, `ELEMENT_SELECTED`, `SELECTION_CHANGED`,
+`SET_SELECTION_INDEX` — the last two only ever fire in dev mode):
 
 1. **Sidebar** (`src/app/App.tsx`, mounted by `src/app/main.tsx` into `sidebar.html`) sends
-   `START_INSPECTION` via `src/messaging/messenger.ts`.
-2. **Background** (`src/background/background.ts`) relays `START_INSPECTION` to the content script of the
-   active tab, and relays `ELEMENT_SELECTED` messages back out via `browser.runtime.sendMessage` (so the
-   sidebar, which isn't a message target itself, receives them through its own `onMessage` listener).
+   `START_INSPECTION` via `src/messaging/messenger.ts`, with a payload of `InspectionOptions`
+   (`src/content/inspector/inspector.ts`): `multiResultMode` and `devMode`. `devMode` is a standing
+   preference (not a per-inspection choice) toggled in the sidebar and persisted to
+   `browser.storage.local` (`"devMode"` key) so it survives the sidebar panel remounting across tab
+   switches — see the `useEffect`/`toggleDevMode` pair in `App.tsx`.
+2. **Background** (`src/background/background.ts`) is a pure relay, via a shared `relayToActiveTab`
+   helper: sidebar → content (`START_INSPECTION`, `SET_SELECTION_INDEX`) goes to the active tab's content
+   script via `browser.tabs.sendMessage`; content → sidebar (`ELEMENT_SELECTED`, `SELECTION_CHANGED`) goes
+   back out via `browser.runtime.sendMessage` (the sidebar isn't a message target itself, so it receives
+   these through its own `onMessage` listener, same as any other extension page).
 3. **Content script** (`src/content/content.ts` → `src/content/inspector/inspector.ts`) attaches capturing
    `mousemove`/`click` listeners: mousemove highlights the hovered element (`inspector/highlighter.ts`
-   draws a fixed-position overlay div plus a text label). A click stops propagation and enters an
-   **adjustment mode** instead of finalizing immediately: it builds a nearest-first ancestor chain up to
-   (and including) `<body>` from the clicked element and switches the `mousemove` listener for a `keydown`
-   one — `ArrowUp`/`ArrowDown` walk that chain to let the user correct the pick (e.g. the click landed on
-   an inner `<div>` but the meaningful element is its wrapping `<h1>`), re-highlighting with an updated
-   label on each move. `Enter` (or any further click, since the mouse no longer drives the highlight once
-   this mode is entered) confirms the currently highlighted element: builds a `DOMContext` for it, runs it
-   through `SelectorGenerationPipeline`, sends the result back as `ELEMENT_SELECTED`, and stops inspecting.
-   `Escape` cancels and stops inspecting without sending anything.
+   draws a fixed-position overlay div plus a text label). What a click does next depends on `devMode`:
+   - **Off (default, non-dev)**: click confirms the clicked element immediately, as before — builds a
+     `DOMContext` for it, runs it through `SelectorGenerationPipeline`, sends the result back as
+     `ELEMENT_SELECTED`, and stops inspecting. No keyboard interaction involved; a non-dev user has no way
+     to judge which ancestor would make a "better" target, so none is offered.
+   - **On (dev mode)**: click instead enters an **adjustment mode**: it builds a nearest-first ancestor
+     chain up to (and including) `<body>` from the clicked element and switches the `mousemove` listener
+     for a `keydown` one — `ArrowUp`/`ArrowDown` walk that chain to let the user correct the pick (e.g. the
+     click landed on an inner `<div>` but the meaningful element is its wrapping `<h1>`), re-highlighting
+     with an updated label on each move. `Enter` (or any further click, since the mouse no longer drives
+     the highlight once this mode is entered) confirms the currently highlighted element the same way the
+     non-dev path does. `Escape` calls `stopInspection(true)` — the `true` (`notifyCancelled`) is what
+     distinguishes this self-initiated stop from the other two ways inspection ends (`STOP_INSPECTION` from
+     the sidebar, or a successful pick already covered by `ELEMENT_SELECTED`); those two keep the sidebar in
+     sync by construction and call `stopInspection()` with no argument, so they stay silent. Only when
+     `notifyCancelled` is set (and inspection was actually active) does it broadcast `INSPECTION_CANCELLED`,
+     which `App.tsx` handles by resetting `inspecting` and clearing the breadcrumb — without this, `Escape`
+     used to leave the sidebar showing a stale "waiting for a click" state indefinitely (recoverable only by
+     clicking "Annuler", which sent a redundant `STOP_INSPECTION`). Every highlight update in adjustment mode
+     also calls `broadcastSelection()`, sending a `SELECTION_CHANGED` message with a serialized, nearest-first
+     `SelectionState` (`{ path, index }`, `path[i]` being a plain `{ tagName, id?, classes }` — not a live
+     element reference, since it has to cross the content-script/sidebar boundary) so the sidebar's breadcrumb
+     view (`App.tsx`, dev mode only) can mirror the current pick. Clicking a node in that breadcrumb sends
+     `SET_SELECTION_INDEX` back, handled by `inspector.ts`'s exported `setSelectionIndex()`, which is the
+     only way the sidebar ever mutates the selection — the live `HTMLElement`s themselves always stay
+     owned by the content script.
 
 Path alias `@/*` → `src/*` (defined in `tsconfig.json`/`tsconfig.app.json` and mirrored in each Vite
 config's `resolve.alias`). Imports in this codebase inconsistently mix `@/...` and relative paths — both
