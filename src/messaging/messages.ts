@@ -19,7 +19,14 @@ export const MessageType = {
     // because the sidebar asked it to (STOP_INSPECTION) or because it
     // already sent ELEMENT_SELECTED — those two cases keep the sidebar in
     // sync by construction, so re-announcing them here would be redundant.
-    INSPECTION_CANCELLED: "INSPECTION_CANCELLED"
+    INSPECTION_CANCELLED: "INSPECTION_CANCELLED",
+
+    // content script -> sidebar, sent instead of ELEMENT_SELECTED when
+    // SelectorGenerationPipeline throws (payload: an error message string) —
+    // without this, an exception on some edge-case DOM left the sidebar
+    // stuck showing "waiting for a click" forever, with no signal that
+    // anything went wrong.
+    INSPECTION_ERROR: "INSPECTION_ERROR"
 
 } as const;
 

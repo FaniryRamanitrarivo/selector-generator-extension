@@ -83,6 +83,15 @@ browser.runtime.onMessage.addListener(
 
                 break;
 
+
+            case MessageType.INSPECTION_ERROR:
+
+                await browser.runtime.sendMessage(
+                    message
+                );
+
+                break;
+
         }
 
     }

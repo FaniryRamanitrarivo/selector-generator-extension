@@ -157,19 +157,38 @@ function confirmSelection() {
 
     removeHighlight();
 
-    const context = buildDOMContext(target);
+    try {
 
-    const pipeline = new SelectorGenerationPipeline();
+        const context = buildDOMContext(target);
 
-    const result = pipeline.generate(context, target, inspectionOptions);
+        const pipeline = new SelectorGenerationPipeline();
 
-    browser.runtime.sendMessage({
+        const result = pipeline.generate(context, target, inspectionOptions);
 
-        type: MessageType.ELEMENT_SELECTED,
+        browser.runtime.sendMessage({
 
-        payload: result
+            type: MessageType.ELEMENT_SELECTED,
 
-    });
+            payload: result
+
+        });
+
+    } catch (error) {
+
+        // Without this, an exception here (some edge-case DOM the pipeline
+        // doesn't handle) would leave the sidebar stuck on "waiting for a
+        // click" forever, with no signal that anything went wrong.
+        console.error("Selector generation failed", error);
+
+        browser.runtime.sendMessage({
+
+            type: MessageType.INSPECTION_ERROR,
+
+            payload: error instanceof Error ? error.message : String(error)
+
+        });
+
+    }
 
     stopInspection();
 

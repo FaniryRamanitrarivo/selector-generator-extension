@@ -62,7 +62,8 @@ already a devDependency and honors `tsconfig.json` paths).
 
 Three isolated JS contexts talk via `browser.runtime` messages typed in `src/messaging/messages.ts`
 (`MessageType`: `START_INSPECTION`, `STOP_INSPECTION`, `ELEMENT_SELECTED`, `SELECTION_CHANGED`,
-`SET_SELECTION_INDEX` — the last two only ever fire in dev mode):
+`SET_SELECTION_INDEX` — the last two only ever fire in dev mode — `INSPECTION_CANCELLED`,
+`INSPECTION_ERROR`):
 
 1. **Sidebar** (`src/app/App.tsx`, mounted by `src/app/main.tsx` into `sidebar.html`) sends
    `START_INSPECTION` via `src/messaging/messenger.ts`, with a payload of `InspectionOptions`
@@ -81,7 +82,10 @@ Three isolated JS contexts talk via `browser.runtime` messages typed in `src/mes
    - **Off (default, non-dev)**: click confirms the clicked element immediately, as before — builds a
      `DOMContext` for it, runs it through `SelectorGenerationPipeline`, sends the result back as
      `ELEMENT_SELECTED`, and stops inspecting. No keyboard interaction involved; a non-dev user has no way
-     to judge which ancestor would make a "better" target, so none is offered.
+     to judge which ancestor would make a "better" target, so none is offered. This (in `confirmSelection()`,
+     shared by both the dev and non-dev paths) is wrapped in a `try`/`catch`: a pipeline exception on some
+     edge-case DOM sends `INSPECTION_ERROR` (payload: the error message) instead of `ELEMENT_SELECTED` — the
+     sidebar renders it as a red error state rather than being left stuck on "waiting for a click" forever.
    - **On (dev mode)**: click instead enters an **adjustment mode**: it builds a nearest-first ancestor
      chain up to (and including) `<body>` from the clicked element and switches the `mousemove` listener
      for a `keydown` one — `ArrowUp`/`ArrowDown` walk that chain to let the user correct the pick (e.g. the
