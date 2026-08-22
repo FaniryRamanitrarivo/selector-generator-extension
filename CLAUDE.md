@@ -70,9 +70,15 @@ Three isolated JS contexts talk via `browser.runtime` messages typed in `src/mes
    sidebar, which isn't a message target itself, receives them through its own `onMessage` listener).
 3. **Content script** (`src/content/content.ts` → `src/content/inspector/inspector.ts`) attaches capturing
    `mousemove`/`click` listeners: mousemove highlights the hovered element (`inspector/highlighter.ts`
-   draws a fixed-position overlay div), click stops propagation, builds a `DOMContext` for the clicked
-   element, runs it through `SelectorGenerationPipeline`, sends the result back as `ELEMENT_SELECTED`, and
-   stops inspecting.
+   draws a fixed-position overlay div plus a text label). A click stops propagation and enters an
+   **adjustment mode** instead of finalizing immediately: it builds a nearest-first ancestor chain up to
+   (and including) `<body>` from the clicked element and switches the `mousemove` listener for a `keydown`
+   one — `ArrowUp`/`ArrowDown` walk that chain to let the user correct the pick (e.g. the click landed on
+   an inner `<div>` but the meaningful element is its wrapping `<h1>`), re-highlighting with an updated
+   label on each move. `Enter` (or any further click, since the mouse no longer drives the highlight once
+   this mode is entered) confirms the currently highlighted element: builds a `DOMContext` for it, runs it
+   through `SelectorGenerationPipeline`, sends the result back as `ELEMENT_SELECTED`, and stops inspecting.
+   `Escape` cancels and stops inspecting without sending anything.
 
 Path alias `@/*` → `src/*` (defined in `tsconfig.json`/`tsconfig.app.json` and mirrored in each Vite
 config's `resolve.alias`). Imports in this codebase inconsistently mix `@/...` and relative paths — both

@@ -18,12 +18,23 @@ import type { SelectorFragment } from "@/content/selector/selector-fragment";
 const CONTAINER_SEMANTIC_THRESHOLD = 0.4;
 
 // How many of an ancestor's top-ranked single-attribute fragments are eligible
-// to be paired together when falling back to a 2-attribute combination (see
-// findUniqueMatchingCombinedFragment). Kept small and bounded by design: this
-// is only ever tried for an ancestor whose own single attributes already
-// failed to uniquely match, so the combinatorial cost (at most C(5,2) = 10
-// validations) is only paid on that harder, presumably rarer, per-ancestor case.
+// to be paired together when falling back to 2-attribute combinations (see
+// selectWithCombinedFragments). Kept small and bounded by design: this pass
+// only runs when no ancestor at all cleared the threshold with a single
+// attribute, so the combinatorial cost (at most C(5,2) = 10 validations per
+// ancestor) is only ever paid on that harder, presumably rarer case.
 const MAX_COMBINED_FRAGMENT_CANDIDATES = 5;
+
+// How many of the target's own top-ranked fragments are tried when checking
+// whether a candidate container can actually be combined into a unique full
+// selector (see matchesUniquelyWithTarget). A container being unique *alone*
+// doesn't guarantee "container target" is unique too — e.g. a unique
+// "product-info" section can still contain several ".size-option" elements,
+// so div[class="product-info"] .size-option would match more than one node
+// even though the container itself is fine. Bounded like
+// MAX_COMBINED_FRAGMENT_CANDIDATES: this only adds cost per container
+// candidate actually being validated, not per ancestor.
+const MAX_TARGET_FRAGMENT_CANDIDATES = 3;
 
 export interface ContainerSelection {
 
@@ -37,17 +48,6 @@ export interface ContainerSelection {
     isSemanticMatch: boolean;
 
 }
-
-// How many of the target's own top-ranked fragments are tried when checking
-// whether a candidate container can actually be combined into a unique full
-// selector (see matchesUniquelyWithTarget). A container being unique *alone*
-// doesn't guarantee "container target" is unique too — e.g. a unique
-// "product-info" section can still contain several ".size-option" elements,
-// so div[class="product-info"] .size-option would match more than one node
-// even though the container itself is fine. Bounded like
-// MAX_COMBINED_FRAGMENT_CANDIDATES: this only adds cost per container
-// candidate actually being validated, not per ancestor.
-const MAX_TARGET_FRAGMENT_CANDIDATES = 3;
 
 interface TargetMatchContext {
 
@@ -79,9 +79,15 @@ export class ContainerSelector {
 
     select(context: DOMContext): ContainerSelection | null {
 
-        // The best unique-but-not-semantic match seen so far (mono or
-        // combined), by sectioning score — used only if the walk finishes
-        // without any ancestor clearing CONTAINER_SEMANTIC_THRESHOLD.
+        // Shared across both the mono and combined passes: the best unique-but-
+        // not-semantic match seen so far, by sectioning score. A combined match
+        // that doesn't clear CONTAINER_SEMANTIC_THRESHOLD is still frequently a
+        // *better* (more specific, less accidental) fallback than a mono match
+        // that didn't clear it either — e.g. the same ancestor's own single
+        // attribute may have been "uniquely" matching only by coincidence (a
+        // `$=`/`^=` fragment matching on attribute-value order rather than
+        // content). It must compete on score, not be discarded outright just
+        // because it came from the second pass.
         const fallback: { selection: ContainerSelection | null; score: number } = {
             selection: null,
             score: -Infinity
@@ -96,60 +102,49 @@ export class ContainerSelector {
             element: context.element.element
         };
 
-        // Nearest-first, and for each ancestor: try a single attribute
-        // first, only reaching for a 2-attribute combination *for that same
-        // ancestor* when no single attribute uniquely identifies it. This
-        // interleaving matters both ways — a close ancestor that only needs
-        // combining must get that chance before a farther ancestor's
-        // unrelated, merely-coincidental mono match can win by default; and
-        // an ancestor whose mono attribute is already unique should never
-        // pay for (or be overridden by) a combined lookup it doesn't need.
+        const scoredByAncestor: Array<{ ancestor: ElementNodeContext; scored: ScoredFragmentCandidate[] }> = [];
+
         for (const ancestor of context.ancestors) {
 
             const scored = buildNodeFragmentCandidates(ancestor, this.attributeScorer, this.fragmentScorer);
+            scoredByAncestor.push({ ancestor, scored });
 
-            const monoMatch = this.findUniqueMatchingFragment(scored, ancestor, targetContext);
+            const match = this.findUniqueMatchingFragment(scored, ancestor, targetContext);
 
-            if (monoMatch) {
-
-                const { fragmentCandidate: best, count } = monoMatch;
-
-                const part: SelectorPart = {
-                    tagName: ancestor.tagname,
-                    fragments: [best.fragment],
-                    score: 0
-                };
-
-                const sectioningScore = this.getSectioningScore(best.candidate, best.fragment);
-
-                if (sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
-                    return { part, matchCount: count, isSemanticMatch: true };
-                }
-
-                this.considerFallback(fallback, sectioningScore, { part, matchCount: count, isSemanticMatch: false });
-
-                continue;
-
-            }
-
-            const combinedMatch = this.findUniqueMatchingCombinedFragment(scored, ancestor, targetContext);
-
-            if (!combinedMatch) {
+            if (!match) {
                 continue;
             }
+
+            const { fragmentCandidate: best, count } = match;
 
             const part: SelectorPart = {
                 tagName: ancestor.tagname,
-                fragments: [combinedMatch.fragment],
+                fragments: [best.fragment],
                 score: 0
             };
 
-            if (combinedMatch.sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
-                return { part, matchCount: combinedMatch.count, isSemanticMatch: true };
+            const sectioningScore = this.getSectioningScore(best.candidate, best.fragment);
+
+            if (sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
+                return { part, matchCount: count, isSemanticMatch: true };
             }
 
-            this.considerFallback(fallback, combinedMatch.sectioningScore, { part, matchCount: combinedMatch.count, isSemanticMatch: false }, true);
+            this.considerFallback(fallback, sectioningScore, { part, matchCount: count, isSemanticMatch: false });
 
+        }
+
+        // No ancestor reached the semantic threshold with a single attribute.
+        // Re-walk the same ancestors nearest-first, this time allowing a
+        // 2-attribute combination per ancestor, before giving up and falling
+        // back to the best non-semantic unique ancestor found across both
+        // passes. A closer, semantically-correct ancestor that only needs a
+        // second attribute to become unique is still preferable to a farther,
+        // structurally-unique one — see findUniqueMatchingFragment's comment on
+        // why proximity alone isn't the goal.
+        const combinedMatch = this.selectWithCombinedFragments(scoredByAncestor, targetContext, fallback);
+
+        if (combinedMatch) {
+            return combinedMatch;
         }
 
         return fallback.selection;
@@ -162,17 +157,49 @@ export class ContainerSelector {
         selection: ContainerSelection,
         preferOnTie = false
     ): void {
-        // preferOnTie lets a combined match win ties against an earlier mono
-        // fallback recorded for a different (farther) ancestor — e.g. a
-        // "details"+"title" pair and a lone "title" fragment can score
-        // identically even though the pair is the more robust, less
-        // order-dependent selector (a single `$=`/`^=` fragment can be
-        // "unique" only because of where its token happens to fall in the
+        // preferOnTie lets the combined pass win ties against an already-set mono
+        // fallback: getSectioningScore reads off the shared AttributeCandidate, so
+        // e.g. a "details"+"title" pair and a lone "title" fragment drawn from the
+        // very same class attribute score identically even though the pair is the
+        // more robust, less order-dependent selector (a single `$=`/`^=` fragment
+        // can be "unique" only because of where its token happens to fall in the
         // attribute string, e.g. class="details title" vs "title details").
         if (sectioningScore > fallback.score || (preferOnTie && sectioningScore === fallback.score)) {
             fallback.score = sectioningScore;
             fallback.selection = selection;
         }
+    }
+
+    private selectWithCombinedFragments(
+        scoredByAncestor: Array<{ ancestor: ElementNodeContext; scored: ScoredFragmentCandidate[] }>,
+        target: TargetMatchContext,
+        fallback: { selection: ContainerSelection | null; score: number }
+    ): ContainerSelection | null {
+
+        for (const { ancestor, scored } of scoredByAncestor) {
+
+            const match = this.findUniqueMatchingCombinedFragment(scored, ancestor, target);
+
+            if (!match) {
+                continue;
+            }
+
+            const part: SelectorPart = {
+                tagName: ancestor.tagname,
+                fragments: [match.fragment],
+                score: 0
+            };
+
+            if (match.sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
+                return { part, matchCount: match.count, isSemanticMatch: true };
+            }
+
+            this.considerFallback(fallback, match.sectioningScore, { part, matchCount: match.count, isSemanticMatch: false }, true);
+
+        }
+
+        return null;
+
     }
 
     // A fragment is only a valid container candidate when it's unique on the page
@@ -262,12 +289,12 @@ export class ContainerSelector {
 
     // Same idea as findUniqueMatchingFragment, but pairs two of the ancestor's
     // top-ranked fragments into a single compound attribute selector, e.g.
-    // [class*="details"][class*="title"]. Only reached from select() when
-    // this same ancestor has no single attribute that uniquely matches on
-    // its own. Candidate pairs are ranked by their combined fragment score
-    // (itself already weighted toward semantic tokens, see FragmentScorer)
-    // so the first pair that validates is the most "readable" one available,
-    // not just the first one tried.
+    // [class*="details"][class*="title"]. Only tried by selectWithCombinedFragments,
+    // i.e. only for ancestors where no single attribute both uniquely matched and
+    // cleared the semantic threshold. Candidate pairs are ranked by their combined
+    // fragment score (itself already weighted toward semantic tokens, see
+    // FragmentScorer) so the first pair that validates is the most "readable" one
+    // available, not just the first one tried.
     private findUniqueMatchingCombinedFragment(
         scored: ScoredFragmentCandidate[],
         ancestor: ElementNodeContext,
