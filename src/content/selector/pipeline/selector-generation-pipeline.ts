@@ -58,7 +58,7 @@ export class SelectorGenerationPipeline {
             .map(selector => this.selectorScorer.score(selector))
             .sort((a, b) => this.selectorScorer.compare(b, a));
 
-        const generated = this.selectorGenerator.generate(scoredSelectors, target, options);
+        const generated = this.selectorGenerator.generate(scoredSelectors, target);
         const normalized = this.countNormalizer.normalize(generated, options);
 
         return normalized

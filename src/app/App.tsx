@@ -4,6 +4,7 @@ import { MessageType } from "@/messaging/messages";
 import { sendMessage } from "@/messaging/messenger";
 import type { GeneratedSelector } from "@/content/selector/generated-selector";
 import type { SelectionState } from "@/content/inspector/inspector";
+import { getSelectorQualityLabel, getSelectorQualityTier, SELECTOR_QUALITY_STYLES } from "./selector-quality";
 
 const MAX_ALTERNATIVES = 5;
 
@@ -129,11 +130,17 @@ export default function App() {
     }
 
     const [best, ...alternatives] = results;
-    // A "best" selector matching more than one element is only the intended
-    // outcome in multi-result mode — otherwise it's a broken promise (the
-    // core pitch is precision) that the count badge alone doesn't make
-    // obvious enough to notice at a glance.
-    const isBestAmbiguous = !!best && !resultsMultiResultMode && best.count > 1;
+    const bestQualityTier = best ? getSelectorQualityTier(best.count, resultsMultiResultMode) : "good";
+    const bestQualityStyle = SELECTOR_QUALITY_STYLES[bestQualityTier];
+    const bestQualityLabel = getSelectorQualityLabel(bestQualityTier, resultsMultiResultMode);
+
+    const bestWarning = !best || bestQualityTier === "good"
+        ? null
+        : resultsMultiResultMode
+            ? "La sélection multiple n'a trouvé qu'un seul élément : aucun groupe à cibler n'a été identifié."
+            : bestQualityTier === "bad"
+                ? `Ce sélecteur correspond à ${best.count} éléments différents et ne scope pas correctement la cible : il est peu fiable en l'état.`
+                : `Ce sélecteur correspond à ${best.count} éléments différents, il ne cible pas un élément unique. Activez « Sélection multiple » si c'est voulu, ou ajustez-le manuellement.`;
 
     return (
         <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-900">
@@ -315,38 +322,39 @@ export default function App() {
 
                 {!inspecting && hasRun && !lastError && results.length === 0 && (
                     <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400">
-                        Aucun sélecteur suffisamment robuste n'a été trouvé pour cet élément.
+                        Aucun sélecteur n'a pu être généré pour cet élément.
                     </p>
                 )}
 
                 {best && (
                     <div
-                        className={`flex flex-col gap-2 rounded-xl border p-4 ${
-                            isBestAmbiguous ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"
-                        }`}
+                        className={`flex flex-col gap-2 rounded-xl border p-4 ${bestQualityStyle.border} ${bestQualityStyle.bg}`}
                     >
 
-                        <div className="flex items-center justify-between">
-                            <span
-                                className={`text-xs font-medium tracking-wide uppercase ${
-                                    isBestAmbiguous ? "text-amber-700" : "text-blue-700"
-                                }`}
-                            >
+                        <div className="flex items-center justify-between gap-2">
+                            <span className={`text-xs font-medium tracking-wide uppercase ${bestQualityStyle.text}`}>
                                 Meilleur sélecteur
                             </span>
-                            <span
-                                className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ${
-                                    isBestAmbiguous ? "bg-amber-500" : "bg-blue-600"
-                                }`}
-                            >
-                                {best.count} {best.count > 1 ? "correspondances" : "correspondance"}
+
+                            <span className="flex items-center gap-1.5">
+                                <span
+                                    className={`flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-medium ${bestQualityStyle.text}`}
+                                >
+                                    <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${bestQualityStyle.dot}`} />
+                                    {bestQualityLabel}
+                                </span>
+
+                                <span
+                                    className={`rounded-full px-2 py-0.5 text-xs font-medium text-white ${bestQualityStyle.badge}`}
+                                >
+                                    {best.count} {best.count > 1 ? "correspondances" : "correspondance"}
+                                </span>
                             </span>
                         </div>
 
-                        {isBestAmbiguous && (
-                            <p className="text-xs text-amber-700">
-                                ⚠ Ce sélecteur correspond à {best.count} éléments différents, il ne cible pas
-                                un élément unique. Activez « Sélection multiple » si c'est voulu.
+                        {bestWarning && (
+                            <p className={`text-xs ${bestQualityStyle.text}`}>
+                                ⚠ {bestWarning}
                             </p>
                         )}
 
@@ -356,9 +364,7 @@ export default function App() {
 
                         <button
                             onClick={() => copySelector(best.selector)}
-                            className={`self-start rounded-md px-3 py-1.5 text-xs font-medium text-white ${
-                                isBestAmbiguous ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-600 hover:bg-blue-700"
-                            }`}
+                            className={`self-start rounded-md px-3 py-1.5 text-xs font-medium text-white ${bestQualityStyle.badge} ${bestQualityStyle.badgeHover}`}
                         >
                             {copiedSelector === best.selector ? "Copié !" : "Copier"}
                         </button>
@@ -373,27 +379,44 @@ export default function App() {
                         </summary>
 
                         <ul className="mt-2 flex flex-col gap-2">
-                            {alternatives.slice(0, MAX_ALTERNATIVES).map(result => (
-                                <li
-                                    key={result.selector}
-                                    className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2"
-                                >
-                                    <code className="min-w-0 flex-1 truncate text-xs text-slate-700">
-                                        {result.selector}
-                                    </code>
+                            {alternatives.slice(0, MAX_ALTERNATIVES).map(result => {
 
-                                    <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
-                                        {result.count}
-                                    </span>
+                                const tier = getSelectorQualityTier(result.count, resultsMultiResultMode);
+                                const style = SELECTOR_QUALITY_STYLES[tier];
+                                const label = getSelectorQualityLabel(tier, resultsMultiResultMode);
 
-                                    <button
-                                        onClick={() => copySelector(result.selector)}
-                                        className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                                return (
+                                    <li
+                                        key={result.selector}
+                                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2"
                                     >
-                                        {copiedSelector === result.selector ? "Copié !" : "Copier"}
-                                    </button>
-                                </li>
-                            ))}
+                                        <span
+                                            aria-hidden="true"
+                                            title={label}
+                                            className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`}
+                                        />
+
+                                        <code className="min-w-0 flex-1 truncate text-xs text-slate-700">
+                                            {result.selector}
+                                        </code>
+
+                                        <span
+                                            title={label}
+                                            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-white ${style.badge}`}
+                                        >
+                                            {result.count}
+                                        </span>
+
+                                        <button
+                                            onClick={() => copySelector(result.selector)}
+                                            className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                                        >
+                                            {copiedSelector === result.selector ? "Copié !" : "Copier"}
+                                        </button>
+                                    </li>
+                                );
+
+                            })}
                         </ul>
                     </details>
                 )}

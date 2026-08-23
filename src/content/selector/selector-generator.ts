@@ -26,8 +26,7 @@ export class SelectorGenerator {
 
     generate(
         selectors: BuildedSelector[],
-        target: HTMLElement,
-        options: SelectorGenerationOptions = {}
+        target: HTMLElement
     ): GeneratedSelector[] {
 
         return selectors
@@ -55,10 +54,14 @@ export class SelectorGenerator {
                 };
 
             })
+            // A non-unique selector (count > 1) outside multiResultMode is no longer dropped
+            // outright — SelectorCountNormalizer already penalizes it (0.25x) so unique
+            // alternatives still outrank it, but surfacing it lets the sidebar show a "best
+            // effort" selector with a robustness warning instead of an empty result set when
+            // no attribute on the page disambiguates the target at all.
             .filter(result =>
                 result.count > 0 &&
-                result.matchesTarget &&
-                (options.multiResultMode || result.count === 1)
+                result.matchesTarget
             );
 
     }
