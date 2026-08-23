@@ -10,11 +10,14 @@ UI (React) that triggers inspection on the active tab; a content script highligh
 captures the click, and runs a scoring pipeline entirely in-page (no network/backend). See `algo/algo.md`
 (French) for the original design intent behind the selector algorithm.
 
-Firefox (Manifest V2, sidebar_action) is the actively built/maintained target. A Chrome (MV3) path exists
-in `configs/vite.chrome.ts` / `manifests/chrome.ts` but is **not wired into any npm script**, and the root
-`manifest.ts` (used by `configs/vite.base.ts` via `@crxjs/vite-plugin`) still points at a stale path
-(`src/extension/background/...`) that doesn't match the actual `src/background` / `src/content` layout.
-Treat the Chrome build as incomplete/unmaintained until someone reconciles it.
+Firefox (Manifest V2, sidebar_action) is the actively built/maintained target. Chrome (MV3) is now built
+the same way — three separate Vite builds (`configs/vite.chrome.ts` / `.background.ts` / `.scripts.ts`)
+outputting into `dist/chrome`, plus `manifests/chrome.ts` generated via `scripts/build-manifest.ts chrome`
+— wired into `npm run build:chrome` / `dev:chrome` (see Commands below). MV3 has no `sidebar_action`
+equivalent to Firefox's, so `manifests/chrome.ts` uses `chrome.sidePanel` (`side_panel.default_path` +
+the `"sidePanel"` permission) pointing at the same `sidebar.html` entry point. An earlier, unrelated
+attempt at a Chrome build via `@crxjs/vite-plugin` (root `vite.config.ts` / `manifest.ts`) was removed —
+it was never wired into any npm script and had drifted to a stale source path.
 
 ## Commands
 
@@ -31,12 +34,19 @@ npm run build:firefox:bg        # background.ts -> IIFE, configs/vite.firefox.ba
 npm run build:firefox:content   # content.ts -> IIFE, configs/vite.firefox.scripts.ts
 npm run build:firefox:manifest  # tsx scripts/build-manifest.ts firefox
 
+# Chrome build (UI + background + content script + manifest.json), output to dist/chrome
+npm run build:chrome
+
+# Chrome dev — builds once, then watches UI/background/content in parallel
+npm run dev:chrome
+
 # Lint
 npx eslint .
 ```
 
 Load the extension by pointing Firefox's temporary add-on loader at `dist/firefox/manifest.json`
-(`about:debugging` → "This Firefox" → "Load Temporary Add-on").
+(`about:debugging` → "This Firefox" → "Load Temporary Add-on"), or Chrome's unpacked-extension loader at
+`dist/chrome` (`chrome://extensions` → enable Developer mode → "Load unpacked").
 
 **Tests**: there is no `npm test` script. Tests live in `tests/*.test.ts` using Node's built-in
 `node:test` + `node:assert/strict`, run directly with TypeScript stripping, e.g.:
@@ -45,16 +55,12 @@ Load the extension by pointing Firefox's temporary add-on loader at `dist/firefo
 node --experimental-strip-types --test tests/selector-generation-pipeline.test.ts
 ```
 
-Note: `tests/selector-generation-pipeline.test.ts` currently fails to parse (invalid TS syntax, e.g. an
-unbalanced `[{}) as Element]` and a `debug?.rules?.supporting-a?.contribution` property access that isn't
-valid JS). This is pre-existing breakage, not something introduced by your changes — don't assume the
-suite is green, and don't be surprised if it won't run at all until that file is fixed.
-
-Also note: plain `node --experimental-strip-types` cannot resolve the `@/*` → `src/*` path alias (no
+Note: plain `node --experimental-strip-types` cannot resolve the `@/*` → `src/*` path alias (no
 tsconfig-paths support), so any test file that transitively imports a module using `@/...` value imports
 (most of `src/content` does) fails with `ERR_MODULE_NOT_FOUND` under that runner — pre-existing, unrelated
 to individual test content. Run those files with `npx tsx --test tests/<file>.test.ts` instead (`tsx` is
-already a devDependency and honors `tsconfig.json` paths).
+already a devDependency and honors `tsconfig.json` paths). Running the whole suite that way
+(`npx tsx --test tests/*.test.ts`) is currently green (20/20 passing across all 7 test files).
 
 ## Architecture
 
@@ -185,13 +191,13 @@ individual scorer classes for magic numbers.
   scripts + `sidebar_action` + `content_scripts`) extend it.
 - `scripts/build-manifest.ts <browser>` dynamically imports `manifests/<browser>.ts` and writes
   `dist/<browser>/manifest.json`.
-- `configs/vite.base.ts` is only consumed by the Chrome path (via `@crxjs/vite-plugin`, which reads the
-  root `manifest.ts`). The Firefox path does **not** use `@crxjs/vite-plugin` at all — it builds the
-  sidebar UI, background script, and content script as three separate Vite builds
-  (`configs/vite.firefox.ts`, `vite.firefox.background.ts`, `vite.firefox.scripts.ts`) all outputting into
-  `dist/firefox` with `emptyOutDir: false`, then generates the manifest separately. Keep this in mind if a
-  build seems to silently overwrite output from a prior step — each Firefox build step targets a distinct
-  file in the same output directory by design.
+- Both Firefox and Chrome share the same build shape: `configs/vite.base.ts` (React + Tailwind +
+  `@/*` alias) is extended by three per-browser Vite configs — `vite.<browser>.ts` (sidebar UI),
+  `vite.<browser>.background.ts`, `vite.<browser>.scripts.ts` (content) — each outputting into
+  `dist/<browser>` with `emptyOutDir: false`, plus a manifest generated separately via
+  `scripts/build-manifest.ts <browser>`. Keep this in mind if a build seems to silently overwrite output
+  from a prior step — each build step targets a distinct file in the same output directory by design.
+  Neither path uses `@crxjs/vite-plugin` (an earlier, never-wired Chrome attempt using it was removed).
 
 
 ## Project goals & design principles
@@ -237,16 +243,16 @@ blend of `SemanticAttributeRule` + `TagNameRule`, see `CONTAINER_SEMANTIC_THRESH
 ancestor clears the threshold, it falls back to the best-scoring ancestor among the unique ones;
 if none is unique at all, no container is used and the pipeline emits a target-only selector.
 
-### Multi-match mode (planned option)
+### Multi-match mode
 
 - Some use cases need the final selector to match multiple elements on purpose (e.g. a size
   selector should match *all* available sizes, not one).
-- The pipeline already has partial groundwork for this: `SelectorCountNormalizer.normalize()`
-  references a `multiResultMode` that rewards inverse match count instead of uniqueness, and
-  `SelectorValidator`'s "must uniquely match target" rule is described as skipped when
-  `multiResultMode` is active.
-- Status of `multiResultMode` (fully wired vs. partial/dead code) needs verification before
-  building the user-facing option on top of it — don't assume it's production-ready as-is.
+- `multiResultMode` is fully wired end-to-end and user-facing: a "Sélection multiple" toggle in the
+  sidebar (`App.tsx`) is sent as part of `InspectionOptions` on `START_INSPECTION`, flows through
+  `SelectorGenerationPipeline.generate()` into `SelectorGenerator.generate()` (skips the "must uniquely
+  match target" rule when active) and `SelectorCountNormalizer.normalize()` (rewards inverse match count
+  instead of uniqueness), and the sidebar shows an "ambiguous selector" warning when the best result
+  matches more than one element outside multi-result mode. See `tests/multi-result-mode.test.ts`.
 
 ## Roadmap (not yet implemented / undecided)
 
@@ -258,5 +264,3 @@ if none is unique at all, no container is used and the pipeline emits a target-o
 - **Modularization**: the robust-selector-generation logic is intended to eventually become
   a standalone, reusable module (not tied to this specific extension) — worth anticipating
   in the architecture where it's low-cost, but not at the expense of MVP progress.
-- **Multi-match selection mode**: expose `multiResultMode` (or equivalent) as an explicit
-  user-facing option for cases like "select all sizes" rather than a single element.

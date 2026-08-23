@@ -12,7 +12,16 @@
     "watch:firefox:ui": "vite build --watch --config configs/vite.firefox.ts",
     "watch:firefox:bg": "vite build --watch --config configs/vite.firefox.background.ts",
     "watch:firefox:content": "vite build --watch --config configs/vite.firefox.scripts.ts",
-    "dev:firefox": "npm run build:firefox && concurrently -n UI,BG,CONTENT \"npm:watch:firefox:ui\" \"npm:watch:firefox:bg\" \"npm:watch:firefox:content\""
+    "dev:firefox": "npm run build:firefox && concurrently -n UI,BG,CONTENT \"npm:watch:firefox:ui\" \"npm:watch:firefox:bg\" \"npm:watch:firefox:content\"",
+    "build:chrome:ui": "vite build --config configs/vite.chrome.ts",
+    "build:chrome:bg": "vite build --config configs/vite.chrome.background.ts",
+    "build:chrome:content": "vite build --config configs/vite.chrome.scripts.ts",
+    "build:chrome:manifest": "tsx scripts/build-manifest.ts chrome",
+    "build:chrome": "npm run build:chrome:ui && npm run build:chrome:bg && npm run build:chrome:content && npm run build:chrome:manifest",
+    "watch:chrome:ui": "vite build --watch --config configs/vite.chrome.ts",
+    "watch:chrome:bg": "vite build --watch --config configs/vite.chrome.background.ts",
+    "watch:chrome:content": "vite build --watch --config configs/vite.chrome.scripts.ts",
+    "dev:chrome": "npm run build:chrome && concurrently -n UI,BG,CONTENT \"npm:watch:chrome:ui\" \"npm:watch:chrome:bg\" \"npm:watch:chrome:content\""
   },
   "dependencies": {
     "react": "^19.2.7",
@@ -20,7 +29,6 @@
     "webextension-polyfill": "^0.12.0"
   },
   "devDependencies": {
-    "@crxjs/vite-plugin": "^2.7.1",
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/firefox-webext-browser": "^143.0.0",

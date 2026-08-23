@@ -47,10 +47,7 @@ export class SelectorGenerationPipeline {
         options: { multiResultMode?: boolean } = {}
     ) {
         const targetPart = this.buildTargetPart(context.element, options.multiResultMode ?? false);
-        console.log("context", context)
-        console.log("targetPart", targetPart)
         const containerSelection = this.containerSelector.select(context);
-        console.log("containerSelection", containerSelection)
 
         const parts: SelectorPart[] = containerSelection
             ? [containerSelection.part, targetPart]
