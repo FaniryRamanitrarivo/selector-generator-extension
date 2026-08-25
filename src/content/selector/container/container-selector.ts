@@ -77,7 +77,7 @@ export class ContainerSelector {
         this.validator = validator;
     }
 
-    select(context: DOMContext): ContainerSelection | null {
+    select(context: DOMContext, multiResultMode = false): ContainerSelection | null {
 
         // Shared across both the mono and combined passes: the best unique-but-
         // not-semantic match seen so far, by sectioning score. A combined match
@@ -109,7 +109,7 @@ export class ContainerSelector {
             const scored = buildNodeFragmentCandidates(ancestor, this.attributeScorer, this.fragmentScorer);
             scoredByAncestor.push({ ancestor, scored });
 
-            const match = this.findUniqueMatchingFragment(scored, ancestor, targetContext);
+            const match = this.findUniqueMatchingFragment(scored, ancestor, targetContext, multiResultMode);
 
             if (!match) {
                 continue;
@@ -124,6 +124,20 @@ export class ContainerSelector {
             };
 
             const sectioningScore = this.getSectioningScore(best.candidate, best.fragment);
+
+            // In multi-result mode, scope tightness trumps semantic strength: the
+            // target fragment is expected to match several siblings, so a farther
+            // ancestor with a stronger sectioning score (e.g. a "product-list"
+            // section) can silently sweep in unrelated sibling groups (other
+            // products' options) that a nearer, less "semantic" ancestor (e.g. one
+            // product card, identified only by a generated id) would have excluded.
+            // Ancestors are walked nearest-first, so the first one able to
+            // disambiguate the target at all is already the tightest scope
+            // available — waiting for CONTAINER_SEMANTIC_THRESHOLD here would only
+            // ever pick a *larger* container, never a better one.
+            if (multiResultMode) {
+                return { part, matchCount: count, isSemanticMatch: sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD };
+            }
 
             if (sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
                 return { part, matchCount: count, isSemanticMatch: true };
@@ -141,7 +155,7 @@ export class ContainerSelector {
         // second attribute to become unique is still preferable to a farther,
         // structurally-unique one — see findUniqueMatchingFragment's comment on
         // why proximity alone isn't the goal.
-        const combinedMatch = this.selectWithCombinedFragments(scoredByAncestor, targetContext, fallback);
+        const combinedMatch = this.selectWithCombinedFragments(scoredByAncestor, targetContext, fallback, multiResultMode);
 
         if (combinedMatch) {
             return combinedMatch;
@@ -173,12 +187,13 @@ export class ContainerSelector {
     private selectWithCombinedFragments(
         scoredByAncestor: Array<{ ancestor: ElementNodeContext; scored: ScoredFragmentCandidate[] }>,
         target: TargetMatchContext,
-        fallback: { selection: ContainerSelection | null; score: number }
+        fallback: { selection: ContainerSelection | null; score: number },
+        multiResultMode: boolean
     ): ContainerSelection | null {
 
         for (const { ancestor, scored } of scoredByAncestor) {
 
-            const match = this.findUniqueMatchingCombinedFragment(scored, ancestor, target);
+            const match = this.findUniqueMatchingCombinedFragment(scored, ancestor, target, multiResultMode);
 
             if (!match) {
                 continue;
@@ -189,6 +204,13 @@ export class ContainerSelector {
                 fragments: [match.fragment],
                 score: 0
             };
+
+            // Same rationale as the mono pass above: in multi-result mode the
+            // nearest ancestor able to disambiguate the target wins outright,
+            // regardless of sectioning score.
+            if (multiResultMode) {
+                return { part, matchCount: match.count, isSemanticMatch: match.sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD };
+            }
 
             if (match.sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
                 return { part, matchCount: match.count, isSemanticMatch: true };
@@ -217,7 +239,8 @@ export class ContainerSelector {
     private findUniqueMatchingFragment(
         scored: ScoredFragmentCandidate[],
         ancestor: ElementNodeContext,
-        target: TargetMatchContext
+        target: TargetMatchContext,
+        multiResultMode: boolean
     ): { fragmentCandidate: ScoredFragmentCandidate; count: number } | null {
 
         for (const fragmentCandidate of scored) {
@@ -233,7 +256,7 @@ export class ContainerSelector {
                 continue;
             }
 
-            if (!this.matchesUniquelyWithTarget(selector, target)) {
+            if (!this.matchesUniquelyWithTarget(selector, target, multiResultMode)) {
                 continue;
             }
 
@@ -258,7 +281,8 @@ export class ContainerSelector {
     // options downstream for the same reason.
     private matchesUniquelyWithTarget(
         containerSelector: string,
-        target: TargetMatchContext
+        target: TargetMatchContext,
+        multiResultMode: boolean
     ): boolean {
 
         const candidates = target.fragments.length ? target.fragments : [undefined];
@@ -269,13 +293,23 @@ export class ContainerSelector {
                 ? `${containerSelector} ${target.tagName}${candidate.fragment.selector}`
                 : `${containerSelector} ${target.tagName}`;
 
-            const { count } = this.validator.validate(selector);
+            const { count, matchesTarget } = this.validator.validate(selector, target.element ?? null);
 
-            if (count !== 1) {
+            if (count === 0) {
                 continue;
             }
 
-            if (target.element && document.querySelector(selector) !== target.element) {
+            // Outside multi-result mode the container+target combo must pin down
+            // exactly the target element, same as everywhere else in this file.
+            // In multi-result mode the target fragment is expected to match
+            // several siblings on purpose (e.g. every ".size-option" inside one
+            // product's container) — only membership (matchesTarget) matters,
+            // not the count.
+            if (!multiResultMode && count !== 1) {
+                continue;
+            }
+
+            if (target.element && !matchesTarget) {
                 continue;
             }
 
@@ -298,7 +332,8 @@ export class ContainerSelector {
     private findUniqueMatchingCombinedFragment(
         scored: ScoredFragmentCandidate[],
         ancestor: ElementNodeContext,
-        target: TargetMatchContext
+        target: TargetMatchContext,
+        multiResultMode: boolean
     ): { fragment: SelectorFragment; sectioningScore: number; count: number } | null {
 
         const topCandidates = scored.slice(0, MAX_COMBINED_FRAGMENT_CANDIDATES);
@@ -347,7 +382,7 @@ export class ContainerSelector {
                 continue;
             }
 
-            if (!this.matchesUniquelyWithTarget(selector, target)) {
+            if (!this.matchesUniquelyWithTarget(selector, target, multiResultMode)) {
                 continue;
             }
 

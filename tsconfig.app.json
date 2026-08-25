@@ -14,7 +14,8 @@
     "module": "esnext",
     "types": [
       "vite/client",
-      "firefox-webext-browser"  
+      "firefox-webext-browser",
+      "chrome-types"
     ],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,

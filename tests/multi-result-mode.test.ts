@@ -78,6 +78,128 @@ test('multiResultMode: clicking one color swatch generates a selector matching e
   });
 });
 
+// Two separate product cards, each with its own repeated ".size-option" buttons.
+// Only the id on each card is unique on the page — the shared "product-info"
+// class is not. A target-only selector like ".size-option" would match all 4
+// buttons across both cards; the correct multi-result behavior is to still pick
+// a container (the clicked button's own card) so the selector only sweeps the
+// options belonging to that one product.
+const SIZE_CARDS_HTML = `
+<div id="card-adidas" class="product-card">
+  <div class="product-info">
+    <button class="size-option size-m">M</button>
+    <button class="size-option size-l">L</button>
+  </div>
+</div>
+<div id="card-nike" class="product-card">
+  <div class="product-info">
+    <button class="size-option size-m">M</button>
+    <button class="size-option size-l">L</button>
+  </div>
+</div>
+`;
+
+function withSizeCardsDOM(run: () => void) {
+  const dom = new JSDOM(`<!doctype html><html><body>${SIZE_CARDS_HTML}</body></html>`);
+
+  globalThis.document = dom.window.document as unknown as Document;
+  (globalThis as { window?: unknown }).window = dom.window;
+
+  try {
+    run();
+  } finally {
+    globalThis.document = originalDocument;
+    (globalThis as { window?: unknown }).window = originalWindow;
+  }
+}
+
+test('multiResultMode: the generated selector is scoped to a container, not every matching element on the page', () => {
+  withSizeCardsDOM(() => {
+    const target = document.querySelector('#card-adidas .size-m') as HTMLElement;
+
+    const context = buildDOMContext(target);
+    const pipeline = new SelectorGenerationPipeline();
+
+    const [best] = pipeline.generate(context, target, { multiResultMode: true });
+
+    assert.ok(best, 'expected at least one generated selector');
+    assert.ok(best!.matchesTarget, 'expected the clicked button to be among the matched elements');
+    assert.equal(
+      best!.count,
+      2,
+      `expected the selector to match only the 2 size options in the clicked card, got count=${best!.count} (${best!.selector})`
+    );
+    const matches = Array.from(document.querySelectorAll(best!.selector));
+    assert.ok(
+      matches.every(element => element.closest('#card-adidas')),
+      `expected every match to be scoped inside the clicked card, got "${best!.selector}" matching ${matches.map(e => e.outerHTML).join(', ')}`
+    );
+  });
+});
+
+// Same idea as SIZE_CARDS_HTML, but this time the two cards are wrapped in a
+// shared <section> that itself clears CONTAINER_SEMANTIC_THRESHOLD easily
+// (id/class "product-list" — a strong semantic word, on a semantic tag). Each
+// card's own id ("card-a"/"card-b") is unique but semantically weak (no
+// recognized word), so it alone would never have cleared the threshold. In
+// multi-result mode this must not cause the walk to keep going past the
+// nearer, tighter card container in search of a "more semantic" one further
+// out — that farther section wraps *both* cards, so scoping there instead of
+// the clicked card doubles the match count.
+const NESTED_SIZE_CARDS_HTML = `
+<section id="product-list" class="product-list">
+  <div id="card-a">
+    <button class="size-option size-m">M</button>
+    <button class="size-option size-l">L</button>
+    <button class="size-option size-s">S</button>
+  </div>
+  <div id="card-b">
+    <button class="size-option size-m">M</button>
+    <button class="size-option size-l">L</button>
+    <button class="size-option size-s">S</button>
+  </div>
+</section>
+`;
+
+function withNestedSizeCardsDOM(run: () => void) {
+  const dom = new JSDOM(`<!doctype html><html><body>${NESTED_SIZE_CARDS_HTML}</body></html>`);
+
+  globalThis.document = dom.window.document as unknown as Document;
+  (globalThis as { window?: unknown }).window = dom.window;
+
+  try {
+    run();
+  } finally {
+    globalThis.document = originalDocument;
+    (globalThis as { window?: unknown }).window = originalWindow;
+  }
+}
+
+test('multiResultMode: prefers the nearer, tighter container over a farther, more "semantic" one', () => {
+  withNestedSizeCardsDOM(() => {
+    const target = document.querySelector('#card-a .size-m') as HTMLElement;
+
+    const context = buildDOMContext(target);
+    const pipeline = new SelectorGenerationPipeline();
+
+    const [best] = pipeline.generate(context, target, { multiResultMode: true });
+
+    assert.ok(best, 'expected at least one generated selector');
+    assert.ok(best!.matchesTarget, 'expected the clicked button to be among the matched elements');
+    assert.equal(
+      best!.count,
+      3,
+      `expected the selector to match only the 3 size options in card-a, got count=${best!.count} (${best!.selector})`
+    );
+
+    const matches = Array.from(document.querySelectorAll(best!.selector));
+    assert.ok(
+      matches.every(element => element.closest('#card-a')),
+      `expected every match to stay inside card-a, got "${best!.selector}" matching ${matches.map(e => e.outerHTML).join(', ')}`
+    );
+  });
+});
+
 test('single-result mode (default): the same click still yields a selector unique to that one swatch', () => {
   withColorFieldsetDOM(() => {
     const target = document.querySelector(

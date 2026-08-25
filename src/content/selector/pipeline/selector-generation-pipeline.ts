@@ -46,8 +46,9 @@ export class SelectorGenerationPipeline {
         target: HTMLElement,
         options: { multiResultMode?: boolean } = {}
     ) {
-        const targetPart = this.buildTargetPart(context.element, options.multiResultMode ?? false);
-        const containerSelection = this.containerSelector.select(context);
+        const multiResultMode = options.multiResultMode ?? false;
+        const targetPart = this.buildTargetPart(context.element, multiResultMode);
+        const containerSelection = this.containerSelector.select(context, multiResultMode);
 
         const parts: SelectorPart[] = containerSelection
             ? [containerSelection.part, targetPart]

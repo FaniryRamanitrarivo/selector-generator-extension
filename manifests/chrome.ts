@@ -15,7 +15,8 @@ export default {
     },
 
     action: {
-        default_title: "Selector Generator"
+        default_title: "Selector Generator",
+        default_icon: baseManifest.icons
     },
 
     side_panel: {

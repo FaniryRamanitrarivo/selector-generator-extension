@@ -3,7 +3,14 @@ import type { ManifestBase } from "./types";
 export const baseManifest: ManifestBase = {
     name: "Selector Generator",
     version: "0.1.0",
-    description: "Generate robust CSS and XPath selectors.",
+    description: "Click any element on a page to generate a robust, readable CSS selector for it.",
+
+    icons: {
+        "16": "icons/icon-16.png",
+        "32": "icons/icon-32.png",
+        "48": "icons/icon-48.png",
+        "128": "icons/icon-128.png"
+    },
 
     permissions: [
         "storage",

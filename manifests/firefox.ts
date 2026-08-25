@@ -13,12 +13,14 @@ export default {
     },
 
     browser_action: {
-        default_title: "Selector Generator"
+        default_title: "Selector Generator",
+        default_icon: baseManifest.icons
     },
 
     sidebar_action: {
         default_title: "Selector Generator",
-        default_panel: "sidebar.html"
+        default_panel: "sidebar.html",
+        default_icon: baseManifest.icons
     },
 
     content_scripts: [

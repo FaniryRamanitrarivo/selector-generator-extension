@@ -8,6 +8,20 @@ console.log(
 );
 
 
+// Chrome (MV3) has no equivalent of Firefox's sidebar_action, which opens
+// automatically on toolbar-icon click — chrome.sidePanel requires opting in
+// explicitly, or clicking the action does nothing. This API doesn't exist on
+// Firefox, so it's guarded at runtime rather than split into a per-browser
+// background entry (both browsers currently build from this same file).
+if (typeof chrome !== "undefined" && chrome.sidePanel) {
+
+    chrome.sidePanel
+        .setPanelBehavior({ openPanelOnActionClick: true })
+        .catch(error => console.error("Failed to set side panel behavior:", error));
+
+}
+
+
 async function relayToActiveTab(
     message: unknown
 ) {
