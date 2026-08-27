@@ -82,12 +82,6 @@ export class ContainerSelector {
 
     select(context: DOMContext, multiResultMode = false): ContainerSelection | null {
 
-        console.log("[ContainerSelector] select() start", {
-            multiResultMode,
-            target: context.element.tagname,
-            ancestorCount: context.ancestors.length
-        });
-
         // Shared across both the mono and combined passes: the best unique-but-
         // not-semantic match seen so far, by sectioning score. A combined match
         // that doesn't clear CONTAINER_SEMANTIC_THRESHOLD is still frequently a
@@ -120,12 +114,6 @@ export class ContainerSelector {
 
             const match = this.findUniqueMatchingFragment(scored, ancestor, targetContext, multiResultMode);
 
-            console.log("[ContainerSelector] ancestor mono pass", {
-                ancestor: ancestor.tagname,
-                attrs: ancestor.attributes.map(a => `${a.name}="${a.rawValue}"`).join(" "),
-                mono: match ? `${ancestor.tagname}${match.fragmentCandidate.fragment.selector}` : null
-            });
-
             if (match) {
 
                 const { fragmentCandidate: best, count } = match;
@@ -138,13 +126,6 @@ export class ContainerSelector {
 
                 const sectioningScore = this.getSectioningScore(best.candidate, best.fragment);
 
-                console.log("[ContainerSelector] mono match found", {
-                    selector: `${ancestor.tagname}${best.fragment.selector}`,
-                    count,
-                    sectioningScore,
-                    clearsThreshold: sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD
-                });
-
                 // In multi-result mode, scope tightness trumps semantic strength: the
                 // target fragment is expected to match several siblings, so a farther
                 // ancestor with a stronger sectioning score (e.g. a "product-list"
@@ -156,16 +137,12 @@ export class ContainerSelector {
                 // available — waiting for CONTAINER_SEMANTIC_THRESHOLD here would only
                 // ever pick a *larger* container, never a better one.
                 if (multiResultMode) {
-                    console.log("[ContainerSelector] select() returning (multiResultMode mono match)", { selector: `${ancestor.tagname}${best.fragment.selector}`, count });
                     return { part, matchCount: count, isSemanticMatch: sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD };
                 }
 
                 if (sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
-                    console.log("[ContainerSelector] select() returning (semantic mono match)", { selector: `${ancestor.tagname}${best.fragment.selector}`, count });
                     return { part, matchCount: count, isSemanticMatch: true };
                 }
-
-                console.log("[ContainerSelector] mono match kept as fallback candidate only (below semantic threshold)", { selector: `${ancestor.tagname}${best.fragment.selector}`, sectioningScore });
 
                 this.considerFallback(fallback, sectioningScore, { part, matchCount: count, isSemanticMatch: false });
 
@@ -190,16 +167,7 @@ export class ContainerSelector {
 
                 const combined = this.findUniqueMatchingCombinedFragment(scored, ancestor, targetContext, multiResultMode);
 
-                console.log("[ContainerSelector] ancestor combined pass (multiResultMode, no mono match)", {
-                    ancestor: ancestor.tagname,
-                    combined: combined ? `${ancestor.tagname}${combined.fragment.selector}` : null
-                });
-
                 if (combined) {
-                    console.log("[ContainerSelector] select() returning (multiResultMode combined match)", {
-                        selector: `${ancestor.tagname}${combined.fragment.selector}`,
-                        count: combined.count
-                    });
                     return {
                         part: { tagName: ancestor.tagname, fragments: [combined.fragment], score: 0 },
                         matchCount: combined.count,
@@ -216,7 +184,6 @@ export class ContainerSelector {
         // as either worked — nothing unique was found for any ancestor, by
         // either method, so there's no container to fall back to.
         if (multiResultMode) {
-            console.log("[ContainerSelector] select() returning null (multiResultMode, no ancestor validated)");
             return null;
         }
 
@@ -231,13 +198,8 @@ export class ContainerSelector {
         const combinedMatch = this.selectWithCombinedFragments(scoredByAncestor, targetContext, fallback, multiResultMode);
 
         if (combinedMatch) {
-            console.log("[ContainerSelector] select() returning (pass 2 combined match)", { selector: `${combinedMatch.part.tagName}${combinedMatch.part.fragments?.[0]?.selector ?? ""}`, matchCount: combinedMatch.matchCount, isSemanticMatch: combinedMatch.isSemanticMatch });
             return combinedMatch;
         }
-
-        console.log("[ContainerSelector] select() returning fallback", fallback.selection
-            ? { selector: `${fallback.selection.part.tagName}${fallback.selection.part.fragments?.[0]?.selector ?? ""}`, matchCount: fallback.selection.matchCount }
-            : null);
 
         return fallback.selection;
 
@@ -373,8 +335,6 @@ export class ContainerSelector {
 
             const { count, matchesTarget } = this.validator.validate(selector, target.element ?? null);
 
-            console.log("[ContainerSelector] matchesUniquelyWithTarget try", { selector, count, matchesTarget });
-
             if (count === 0) {
                 continue;
             }
@@ -462,11 +422,6 @@ export class ContainerSelector {
             .slice(0, MAX_COMBINED_FRAGMENT_CANDIDATES)
             .flat();
 
-        console.log("[ContainerSelector] findUniqueMatchingCombinedFragment topCandidates", {
-            ancestor: ancestor.tagname,
-            topCandidates: topCandidates.map(c => ({ selector: c.fragment.selector, token: c.fragment.token, score: c.fragment.score }))
-        });
-
         const pairs: Array<{ a: ScoredFragmentCandidate; b: ScoredFragmentCandidate; combinedScore: number }> = [];
 
         for (let i = 0; i < topCandidates.length; i++) {
@@ -502,8 +457,6 @@ export class ContainerSelector {
 
             const selector = `${ancestor.tagname}${a.fragment.selector}${b.fragment.selector}`;
             const { count } = this.validator.validate(selector);
-
-            console.log("[ContainerSelector] combined pair try", { selector, count });
 
             if (count !== 1) {
                 continue;

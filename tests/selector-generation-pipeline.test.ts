@@ -227,6 +227,43 @@ test('SelectorScorer exposes detailed score diagnostics', () => {
   assert.ok(result.debug?.rules);
 });
 
+test('SelectorScorer prefers a data-* attribute with an explicit value over a short, non-semantic class token', () => {
+  // Mirrors a live case: the container is identical for both candidates, only
+  // the target fragment differs — a meaningful data-testid value should beat
+  // a terse, non-recognizable class token (e.g. a design-system prefix like
+  // "sg"), not lose to it just because EXPLICIT_IDENTIFIER_PATTERN /
+  // ATTRIBUTE_VALUE_PATTERN used to only recognize class/id.
+  globalThis.document = {
+    // Every candidate selector here is unique on the page — counts are kept
+    // equal on purpose so uniqueness doesn't drown out the readability/
+    // precision difference under test.
+    querySelectorAll: () => [{}]
+  } as unknown as Document;
+
+  const scorer = new SelectorScorer();
+
+  const dataTestidSelector: BuildedSelector = {
+    selector: 'div[data-testid*="description"] h1[data-testid*="title"]',
+    score: 0,
+    fragmentScores: [0.5, 0.5]
+  };
+
+  const classSelector: BuildedSelector = {
+    selector: 'div[data-testid*="description"] h1[class*="sg"]',
+    score: 0,
+    fragmentScores: [0.5, 0.5]
+  };
+
+  const dataTestidResult = scorer.score(dataTestidSelector);
+  const classResult = scorer.score(classSelector);
+
+  assert.ok(
+    dataTestidResult.evaluation!.readabilityScore > classResult.evaluation!.readabilityScore,
+    `expected the data-testid selector to read better, got data-testid=${dataTestidResult.evaluation?.readabilityScore} class=${classResult.evaluation?.readabilityScore}`
+  );
+  assert.equal(scorer.compare(dataTestidSelector, classSelector), 1);
+});
+
 test.after(() => {
   globalThis.document = originalDocument;
 });

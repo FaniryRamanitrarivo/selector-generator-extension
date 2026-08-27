@@ -7,7 +7,7 @@ type SemanticMatch = {
     token: string;
     position: number;
     fragmentIndex: number;
-    attributeType?: "class" | "id";
+    attributeType?: "class" | "id" | "data";
     operator?: "=" | "~=" | "*=" | "^=" | "$=";
 };
 
@@ -43,7 +43,14 @@ const GENERATED_IDENTIFIER_PATTERN =
     /(?:css|react|chakra|mui|mantine|ember|vue|next|[a-f0-9]{6,}|uuid)/;
 
 const STRUCTURAL_TAG_PATTERN = /\b(main|section|fieldset|article|nav|header|footer|aside)\b/;
-const EXPLICIT_IDENTIFIER_PATTERN = /\[(id|class)[^\]]*(=|~|\^|\$|\*)/;
+
+// data-* is deliberately included alongside id/class here: CategoryRule ranks
+// it as the *most* stable attribute type (data-* > id > name > role > class),
+// so a selector built entirely from data-* attributes (e.g.
+// `h1[data-testid*="title"]`) must not be treated as less "explicit" than one
+// using a class — see getContextScore, whose 0.7 floor previously only ever
+// triggered for [id...]/[class...].
+const EXPLICIT_IDENTIFIER_PATTERN = /\[(id|class|data-[\w-]+)[^\]]*(=|~|\^|\$|\*)/;
 
 const CONCISION_THRESHOLDS = [
     { maxLength: 24, score: 0.95 },
@@ -105,12 +112,15 @@ const SEMANTIC_TOKEN_PATTERN = new RegExp(
     "gi"
 );
 
-// Matches [class="..."], [id~="..."], etc. Used to find the exact character
-// span of an attribute's *value*, so a semantic-token match can be checked
-// against a precise position instead of "is this token anywhere in the
-// fragment" (which would also match a tag name that happens to share text
-// with an unrelated attribute value, e.g. section[class$="section"]).
-const ATTRIBUTE_VALUE_PATTERN = /\[(class|id)\s*(=|~=|\*=|\^=|\$=)\s*"([^"]*)"\]/gi;
+// Matches [class="..."], [id~="..."], [data-testid*="..."], etc. Used to find
+// the exact character span of an attribute's *value*, so a semantic-token
+// match can be checked against a precise position instead of "is this token
+// anywhere in the fragment" (which would also match a tag name that happens
+// to share text with an unrelated attribute value, e.g.
+// section[class$="section"]). data-* is included alongside class/id for the
+// same reason as EXPLICIT_IDENTIFIER_PATTERN above — see getAttributeValueSpans
+// for how the captured attribute name collapses to the "data" type.
+const ATTRIBUTE_VALUE_PATTERN = /\[(class|id|data-[\w-]+)\s*(=|~=|\*=|\^=|\$=)\s*"([^"]*)"\]/gi;
 
 export class SelectorScorer {
 
@@ -376,13 +386,13 @@ export class SelectorScorer {
     private getAttributeValueSpans(fragment: string): Array<{
         start: number;
         end: number;
-        attributeType: "class" | "id";
+        attributeType: "class" | "id" | "data";
         operator: "=" | "~=" | "*=" | "^=" | "$=";
     }> {
         const spans: Array<{
             start: number;
             end: number;
-            attributeType: "class" | "id";
+            attributeType: "class" | "id" | "data";
             operator: "=" | "~=" | "*=" | "^=" | "$=";
         }> = [];
 
@@ -391,10 +401,14 @@ export class SelectorScorer {
             const valueStart = fullMatchStart + match[0].indexOf('"') + 1;
             const valueEnd = valueStart + match[3].length;
 
+            const rawAttributeName = match[1].toLowerCase();
+
             spans.push({
                 start: valueStart,
                 end: valueEnd,
-                attributeType: match[1].toLowerCase() as "class" | "id",
+                attributeType: rawAttributeName === "class" || rawAttributeName === "id"
+                    ? rawAttributeName
+                    : "data",
                 operator: match[2] as "=" | "~=" | "*=" | "^=" | "$="
             });
         }
