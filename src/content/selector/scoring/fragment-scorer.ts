@@ -1,6 +1,7 @@
 import type { AttributeCandidate } from "@/content/analyzer/scoring/attribute-candidature";
 import type { SelectorFragment } from "@/content/selector/selector-fragment";
 import { clampScore } from "@/content/scoring/scoring-config";
+import { isGeneratedLikeToken } from "@/content/analyzer/attributes/generated-token";
 
 export class FragmentScorer {
 
@@ -22,6 +23,7 @@ export class FragmentScorer {
         const semanticScore = this.getSemanticScore(candidate, fragment);
         const tagScore = this.getTagScore(tagName);
         const concisionScore = this.getConcisionScore(fragment);
+        const generatedTokenPenalty = this.getGeneratedTokenPenalty(fragment);
 
         const score = clampScore(
             candidate.score * 0.2 +
@@ -31,7 +33,8 @@ export class FragmentScorer {
             stabilityScore * 0.12 +
             semanticScore * 0.08 +
             tagScore * 0.06 +
-            concisionScore * 0.12
+            concisionScore * 0.12 -
+            generatedTokenPenalty
         );
 
         return {
@@ -193,11 +196,27 @@ export class FragmentScorer {
             return 0.35;
         }
 
-        if (candidate.value?.toLowerCase().includes(token)) {
+        // A token trivially "appears in" its own candidate's value (that's where it
+        // came from) — that's not a signal of meaning on its own, so it must not
+        // reward a css-in-js hash or other generated-looking token just because it
+        // technically satisfies this check. See getGeneratedTokenPenalty for the
+        // actual penalty applied to such tokens.
+        if (!isGeneratedLikeToken(token) && candidate.value?.toLowerCase().includes(token)) {
             return 0.15;
         }
 
         return 0;
+    }
+
+    // Generated-looking tokens (css-in-js hashes, bundler ids, raw hex/uuid
+    // strings, long digit runs) are unstable and meaningless to a reader — see
+    // isGeneratedLikeToken. They still need to remain usable as a last resort
+    // when nothing else on the page can disambiguate the element (better an ugly
+    // working selector than none), so this is a penalty on the composite score
+    // rather than an exclusion: strong enough that any real semantic or
+    // structural alternative outranks it, but not disqualifying.
+    private getGeneratedTokenPenalty(fragment: SelectorFragment): number {
+        return fragment.token && isGeneratedLikeToken(fragment.token) ? 0.35 : 0;
     }
 
     private getTagScore(tagName?: string): number {

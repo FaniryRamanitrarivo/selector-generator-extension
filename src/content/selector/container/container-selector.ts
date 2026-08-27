@@ -17,12 +17,15 @@ import type { SelectorFragment } from "@/content/selector/selector-fragment";
 // going up.
 const CONTAINER_SEMANTIC_THRESHOLD = 0.4;
 
-// How many of an ancestor's top-ranked single-attribute fragments are eligible
-// to be paired together when falling back to 2-attribute combinations (see
-// selectWithCombinedFragments). Kept small and bounded by design: this pass
-// only runs when no ancestor at all cleared the threshold with a single
-// attribute, so the combinatorial cost (at most C(5,2) = 10 validations per
-// ancestor) is only ever paid on that harder, presumably rarer case.
+// How many of an ancestor's top-ranked *tokens* are eligible to be paired
+// together when falling back to 2-attribute combinations (see
+// selectWithCombinedFragments and findUniqueMatchingCombinedFragment). Every
+// operator variant (~=/*=/^=/$=, up to 4) of each selected token is kept, so
+// the actual validation cost is bounded by up to C(5,2) token pairs * 16
+// operator combinations = 160 validations per ancestor — kept small and
+// bounded by design: this pass only runs when no ancestor at all cleared the
+// threshold with a single attribute, so that cost is only ever paid on that
+// harder, presumably rarer case.
 const MAX_COMBINED_FRAGMENT_CANDIDATES = 5;
 
 // How many of the target's own top-ranked fragments are tried when checking
@@ -79,6 +82,12 @@ export class ContainerSelector {
 
     select(context: DOMContext, multiResultMode = false): ContainerSelection | null {
 
+        console.log("[ContainerSelector] select() start", {
+            multiResultMode,
+            target: context.element.tagname,
+            ancestorCount: context.ancestors.length
+        });
+
         // Shared across both the mono and combined passes: the best unique-but-
         // not-semantic match seen so far, by sectioning score. A combined match
         // that doesn't clear CONTAINER_SEMANTIC_THRESHOLD is still frequently a
@@ -111,40 +120,104 @@ export class ContainerSelector {
 
             const match = this.findUniqueMatchingFragment(scored, ancestor, targetContext, multiResultMode);
 
-            if (!match) {
+            console.log("[ContainerSelector] ancestor mono pass", {
+                ancestor: ancestor.tagname,
+                attrs: ancestor.attributes.map(a => `${a.name}="${a.rawValue}"`).join(" "),
+                mono: match ? `${ancestor.tagname}${match.fragmentCandidate.fragment.selector}` : null
+            });
+
+            if (match) {
+
+                const { fragmentCandidate: best, count } = match;
+
+                const part: SelectorPart = {
+                    tagName: ancestor.tagname,
+                    fragments: [best.fragment],
+                    score: 0
+                };
+
+                const sectioningScore = this.getSectioningScore(best.candidate, best.fragment);
+
+                console.log("[ContainerSelector] mono match found", {
+                    selector: `${ancestor.tagname}${best.fragment.selector}`,
+                    count,
+                    sectioningScore,
+                    clearsThreshold: sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD
+                });
+
+                // In multi-result mode, scope tightness trumps semantic strength: the
+                // target fragment is expected to match several siblings, so a farther
+                // ancestor with a stronger sectioning score (e.g. a "product-list"
+                // section) can silently sweep in unrelated sibling groups (other
+                // products' options) that a nearer, less "semantic" ancestor (e.g. one
+                // product card, identified only by a generated id) would have excluded.
+                // Ancestors are walked nearest-first, so the first one able to
+                // disambiguate the target at all is already the tightest scope
+                // available — waiting for CONTAINER_SEMANTIC_THRESHOLD here would only
+                // ever pick a *larger* container, never a better one.
+                if (multiResultMode) {
+                    console.log("[ContainerSelector] select() returning (multiResultMode mono match)", { selector: `${ancestor.tagname}${best.fragment.selector}`, count });
+                    return { part, matchCount: count, isSemanticMatch: sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD };
+                }
+
+                if (sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
+                    console.log("[ContainerSelector] select() returning (semantic mono match)", { selector: `${ancestor.tagname}${best.fragment.selector}`, count });
+                    return { part, matchCount: count, isSemanticMatch: true };
+                }
+
+                console.log("[ContainerSelector] mono match kept as fallback candidate only (below semantic threshold)", { selector: `${ancestor.tagname}${best.fragment.selector}`, sectioningScore });
+
+                this.considerFallback(fallback, sectioningScore, { part, matchCount: count, isSemanticMatch: false });
+
                 continue;
+
             }
 
-            const { fragmentCandidate: best, count } = match;
-
-            const part: SelectorPart = {
-                tagName: ancestor.tagname,
-                fragments: [best.fragment],
-                score: 0
-            };
-
-            const sectioningScore = this.getSectioningScore(best.candidate, best.fragment);
-
-            // In multi-result mode, scope tightness trumps semantic strength: the
-            // target fragment is expected to match several siblings, so a farther
-            // ancestor with a stronger sectioning score (e.g. a "product-list"
-            // section) can silently sweep in unrelated sibling groups (other
-            // products' options) that a nearer, less "semantic" ancestor (e.g. one
-            // product card, identified only by a generated id) would have excluded.
-            // Ancestors are walked nearest-first, so the first one able to
-            // disambiguate the target at all is already the tightest scope
-            // available — waiting for CONTAINER_SEMANTIC_THRESHOLD here would only
-            // ever pick a *larger* container, never a better one.
+            // In multi-result mode there's no second global pass over all
+            // ancestors (see below) — proximity is what makes a container
+            // correct, so a 2-attribute combination has to be tried on *this*
+            // ancestor right now, before moving further out. Skipping this
+            // and only coming back to combinations in a later pass would let
+            // a farther ancestor's single-attribute match (e.g. a page-wide
+            // "grid" wrapper) win outright just because it was reached first
+            // — even though a nearer ancestor (e.g. one product's attribute
+            // widget) was unique too, just not with a single attribute alone.
+            // This is exactly the false-positive scenario the container is
+            // meant to prevent (see CLAUDE.md's container-semantics section),
+            // just triggered by the walk order rather than an accidentally-
+            // unique generic class.
             if (multiResultMode) {
-                return { part, matchCount: count, isSemanticMatch: sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD };
+
+                const combined = this.findUniqueMatchingCombinedFragment(scored, ancestor, targetContext, multiResultMode);
+
+                console.log("[ContainerSelector] ancestor combined pass (multiResultMode, no mono match)", {
+                    ancestor: ancestor.tagname,
+                    combined: combined ? `${ancestor.tagname}${combined.fragment.selector}` : null
+                });
+
+                if (combined) {
+                    console.log("[ContainerSelector] select() returning (multiResultMode combined match)", {
+                        selector: `${ancestor.tagname}${combined.fragment.selector}`,
+                        count: combined.count
+                    });
+                    return {
+                        part: { tagName: ancestor.tagname, fragments: [combined.fragment], score: 0 },
+                        matchCount: combined.count,
+                        isSemanticMatch: combined.sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD
+                    };
+                }
+
             }
 
-            if (sectioningScore >= CONTAINER_SEMANTIC_THRESHOLD) {
-                return { part, matchCount: count, isSemanticMatch: true };
-            }
+        }
 
-            this.considerFallback(fallback, sectioningScore, { part, matchCount: count, isSemanticMatch: false });
-
+        // Multi-result mode already tried both single- and 2-attribute
+        // fragments per ancestor above (nearest-first) and returned as soon
+        // as either worked — nothing unique was found for any ancestor, by
+        // either method, so there's no container to fall back to.
+        if (multiResultMode) {
+            console.log("[ContainerSelector] select() returning null (multiResultMode, no ancestor validated)");
+            return null;
         }
 
         // No ancestor reached the semantic threshold with a single attribute.
@@ -158,8 +231,13 @@ export class ContainerSelector {
         const combinedMatch = this.selectWithCombinedFragments(scoredByAncestor, targetContext, fallback, multiResultMode);
 
         if (combinedMatch) {
+            console.log("[ContainerSelector] select() returning (pass 2 combined match)", { selector: `${combinedMatch.part.tagName}${combinedMatch.part.fragments?.[0]?.selector ?? ""}`, matchCount: combinedMatch.matchCount, isSemanticMatch: combinedMatch.isSemanticMatch });
             return combinedMatch;
         }
+
+        console.log("[ContainerSelector] select() returning fallback", fallback.selection
+            ? { selector: `${fallback.selection.part.tagName}${fallback.selection.part.fragments?.[0]?.selector ?? ""}`, matchCount: fallback.selection.matchCount }
+            : null);
 
         return fallback.selection;
 
@@ -295,6 +373,8 @@ export class ContainerSelector {
 
             const { count, matchesTarget } = this.validator.validate(selector, target.element ?? null);
 
+            console.log("[ContainerSelector] matchesUniquelyWithTarget try", { selector, count, matchesTarget });
+
             if (count === 0) {
                 continue;
             }
@@ -336,7 +416,56 @@ export class ContainerSelector {
         multiResultMode: boolean
     ): { fragment: SelectorFragment; sectioningScore: number; count: number } | null {
 
-        const topCandidates = scored.slice(0, MAX_COMBINED_FRAGMENT_CANDIDATES);
+        // Group by token *before* cutting to the top N: `scored` holds up to 4
+        // operator variants (~=/*=/^=/$=) per token, and a single very common
+        // word (e.g. a class token reused site-wide as a layout/utility class)
+        // can still out-score every variant of a rarer, more useful token
+        // across the board. Without this, the top-N slice can end up holding
+        // several operator variants of just one or two tokens — leaving no
+        // room for the token that was actually needed to complete a correct
+        // pair (see the container-selector-token-diversity test: a widely-
+        // reused "container" token loses out to every variant of a rarer "js"
+        // token).
+        //
+        // Only the *token* ranking is collapsed to one entry, though — every
+        // operator variant of a token that makes the cut is kept. The
+        // variant that scores highest *alone* (FragmentScorer, based on
+        // global page uniqueness) isn't necessarily the one whose value
+        // actually lines up for the combination — e.g. "container" alone
+        // might rank endsWith ($=) highest globally, while only contains
+        // (*=) actually appears in this ancestor's own class list combined
+        // with the paired token. Discarding those other variants entirely
+        // (as an earlier version of this dedup did) meant the one pair that
+        // was actually unique — e.g. [class*="attribute"][class*="container"]
+        // — could be skipped in favor of a same-token pair using the wrong
+        // operator, even though every ranked-lower pair is tried before
+        // falling back further out (see the "attribute container" case
+        // reported against a live UGG product page).
+        const variantsByToken = new Map<string, ScoredFragmentCandidate[]>();
+
+        for (const candidate of scored) {
+            const key = candidate.fragment.token ?? candidate.fragment.selector;
+            const variants = variantsByToken.get(key);
+
+            if (variants) {
+                variants.push(candidate);
+            } else {
+                variantsByToken.set(key, [candidate]);
+            }
+        }
+
+        const bestScorePerToken = (variants: ScoredFragmentCandidate[]) =>
+            Math.max(...variants.map(variant => variant.fragment.score));
+
+        const topCandidates = [...variantsByToken.values()]
+            .sort((a, b) => bestScorePerToken(b) - bestScorePerToken(a))
+            .slice(0, MAX_COMBINED_FRAGMENT_CANDIDATES)
+            .flat();
+
+        console.log("[ContainerSelector] findUniqueMatchingCombinedFragment topCandidates", {
+            ancestor: ancestor.tagname,
+            topCandidates: topCandidates.map(c => ({ selector: c.fragment.selector, token: c.fragment.token, score: c.fragment.score }))
+        });
 
         const pairs: Array<{ a: ScoredFragmentCandidate; b: ScoredFragmentCandidate; combinedScore: number }> = [];
 
@@ -373,6 +502,8 @@ export class ContainerSelector {
 
             const selector = `${ancestor.tagname}${a.fragment.selector}${b.fragment.selector}`;
             const { count } = this.validator.validate(selector);
+
+            console.log("[ContainerSelector] combined pair try", { selector, count });
 
             if (count !== 1) {
                 continue;

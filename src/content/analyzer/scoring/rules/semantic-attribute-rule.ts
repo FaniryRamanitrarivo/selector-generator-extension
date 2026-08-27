@@ -4,6 +4,8 @@ import type {
     AttributeCandidate
 } from "../attribute-candidature";
 
+import { isGeneratedLikeToken } from "@/content/analyzer/attributes/generated-token";
+
 
 const IMPORTANT_WORDS = new Set([
     "sku",
@@ -61,14 +63,6 @@ const STRUCTURAL_WORDS = new Set([
     "overview"
 ]);
 
-const GENERATED_ID_PATTERNS = [
-    /^(css|react|chakra|mui|mantine|ember|vue|next)-/i,
-    /^([a-f0-9]{6,}|uuid|random|hash|hashes)$/i,
-    /^\d+$/,
-    /[0-9]{4,}/
-];
-
-
 export class SemanticAttributeRule
     implements ScoringRule<AttributeCandidate> {
 
@@ -94,7 +88,7 @@ export class SemanticAttributeRule
 
         const normalizedTokens = tokens.map(token => token.toLowerCase());
         const score = normalizedTokens.reduce((total, token) => {
-            if (GENERATED_ID_PATTERNS.some(pattern => pattern.test(token))) {
+            if (isGeneratedLikeToken(token)) {
                 return total - 0.8;
             }
 
@@ -134,7 +128,7 @@ export class SemanticAttributeRule
 
         const normalizedValue = value.toLowerCase();
 
-        if (GENERATED_ID_PATTERNS.some(pattern => pattern.test(normalizedValue))) {
+        if (isGeneratedLikeToken(normalizedValue)) {
             return -0.8;
         }
 

@@ -22,7 +22,13 @@ export function extractAttributeCandidates(
                 return [];
             }
 
-            const tokens = attribute.tokens.filter(token => value.includes(token));
+            // attribute.tokens is a lowercased pool (see tokenizeAttribute); value keeps
+            // its original casing, so this must compare case-insensitively too — otherwise
+            // any token that only appears capitalized in this specific value (e.g. "form"
+            // from a PascalCase class like "MuiFormGroup-root") is silently dropped from
+            // its own candidate, even though it's a perfectly usable, readable fragment.
+            const lowerCaseValue = value.toLowerCase();
+            const tokens = attribute.tokens.filter(token => lowerCaseValue.includes(token));
 
             return [{
                 name: attribute.name,

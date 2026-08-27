@@ -61,6 +61,59 @@ test('FragmentScorer does not favor a generic structural token over a descriptiv
   assert.ok(productScore > pageScore, '"product" (descriptive) should outrank "page" (generic) despite being longer');
 });
 
+test('FragmentScorer penalizes a css-in-js hash token below a plain, non-generated one', () => {
+  globalThis.document = {
+    querySelectorAll: () => [{}] // every fragment is equally unique for this comparison
+  } as unknown as Document;
+
+  // Typical emotion/MUI output: a stable base class plus a build-generated
+  // hash suffix, both tokenized off the same class attribute.
+  const candidate: AttributeCandidate = {
+    name: 'class',
+    category: 'class' as never,
+    value: 'css-2433413',
+    tokens: ['css', '2433413'],
+    score: 0.8,
+    tagName: 'div'
+  };
+
+  const scorer = new FragmentScorer();
+  const scored = generateCSSFragments(candidate).map(fragment => scorer.score(fragment, candidate, 'div'));
+  scored.sort((a, b) => b.score - a.score);
+
+  const cssFragment = scored.find(f => f.token === 'css' && f.operator === 'contains')!;
+  const hashFragment = scored.find(f => f.token === '2433413' && f.operator === 'contains')!;
+
+  assert.ok(
+    cssFragment.score > hashFragment.score,
+    `expected the non-generated token to outscore the hash token, got css=${cssFragment.score} hash=${hashFragment.score}`
+  );
+});
+
+test('FragmentScorer still lets a generated-looking token score positively (usable as a last resort)', () => {
+  globalThis.document = {
+    querySelectorAll: () => [{}]
+  } as unknown as Document;
+
+  const candidate: AttributeCandidate = {
+    name: 'class',
+    category: 'class' as never,
+    value: 'css-2433413',
+    tokens: ['css', '2433413'],
+    score: 0.2, // low candidate score too, as SemanticAttributeRule would already penalize this value
+    tagName: 'div'
+  };
+
+  const scorer = new FragmentScorer();
+  const hashFragment = scorer.score(
+    { selector: '[class*="2433413"]', score: 0.2, operator: 'contains', token: '2433413' },
+    candidate,
+    'div'
+  );
+
+  assert.ok(hashFragment.score > 0, 'expected the hash-based fragment to still score above zero, not be excluded outright');
+});
+
 test.after(() => {
   globalThis.document = originalDocument;
 });
