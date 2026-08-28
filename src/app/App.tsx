@@ -358,6 +358,14 @@ export default function App() {
                             </p>
                         )}
 
+                        {best.insideShadowRoot && (
+                            <p className="text-xs text-amber-700">
+                                ⚠ Cet élément est dans un Shadow DOM — utilisez{" "}
+                                <code>hostElement.shadowRoot.querySelector(...)</code>, pas{" "}
+                                <code>document.querySelector(...)</code> directement.
+                            </p>
+                        )}
+
                         <code className="block overflow-x-auto rounded-lg bg-white p-2 text-sm text-slate-800">
                             {best.selector}
                         </code>

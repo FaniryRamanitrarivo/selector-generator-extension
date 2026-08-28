@@ -1,3 +1,5 @@
+import { queryAllDeep } from "@/content/analyzer/dom/deep-query";
+
 export interface SelectorValidationResult {
 
     selector: string;
@@ -17,23 +19,12 @@ export class SelectorValidator {
         target: HTMLElement | null = null
     ): SelectorValidationResult {
 
-        let elements: NodeListOf<Element>;
-
-        try {
-            elements = document.querySelectorAll(selector);
-        } catch {
-            return {
-                selector,
-                count: 0,
-                matchesTarget: false,
-                isValid: false
-            };
-        }
+        const elements = queryAllDeep(selector);
 
         const count = elements.length;
 
         const matchesTarget = target
-            ? Array.from(elements).includes(target)
+            ? elements.includes(target)
             : count > 0;
 
 

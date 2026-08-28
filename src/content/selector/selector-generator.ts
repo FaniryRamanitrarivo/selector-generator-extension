@@ -29,6 +29,10 @@ export class SelectorGenerator {
         target: HTMLElement
     ): GeneratedSelector[] {
 
+        // typeof-guarded: ShadowRoot isn't a global in every environment this runs in
+        // (e.g. plain jsdom test setups that never touch shadow DOM).
+        const insideShadowRoot = typeof ShadowRoot !== "undefined" && target.getRootNode() instanceof ShadowRoot;
+
         return selectors
             .map(selector => {
 
@@ -49,6 +53,7 @@ export class SelectorGenerator {
 
                     countScore: 0,
                     matchesTarget: result.matchesTarget,
+                    insideShadowRoot,
                     debug: selector.debug
 
                 };

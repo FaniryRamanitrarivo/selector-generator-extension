@@ -2,6 +2,7 @@ import type { WeightedScoringRule } from "@/content/analyzer/scoring/weighted-sc
 import type { BuildedSelector } from "@/content/selector/builder/selector-builder";
 import type { SelectorEvaluation } from "@/content/selector/selector-evaluation";
 import { clampScore, SCORING_WEIGHTS } from "@/content/scoring/scoring-config";
+import { queryAllDeep } from "@/content/analyzer/dom/deep-query";
 
 type SemanticMatch = {
     token: string;
@@ -126,8 +127,8 @@ export class SelectorScorer {
 
     private readonly rules: WeightedScoringRule<BuildedSelector>[];
 
-    // Memoizes document.querySelectorAll(...).length for a given selector
-    // string. getUniquenessScore() re-evaluates every container prefix of a
+    // Memoizes queryAllDeep(...).length for a given selector string.
+    // getUniquenessScore() re-evaluates every container prefix of a
     // selector, so identical prefixes across many candidate selectors would
     // otherwise trigger the same DOM query repeatedly.
     private readonly matchCountCache = new Map<string, number>();
@@ -600,12 +601,7 @@ export class SelectorScorer {
         const cached = this.matchCountCache.get(selector);
         if (cached !== undefined) return cached;
 
-        let count: number;
-        try {
-            count = document.querySelectorAll(selector).length;
-        } catch {
-            count = 0;
-        }
+        const count = queryAllDeep(selector).length;
 
         this.matchCountCache.set(selector, count);
         return count;

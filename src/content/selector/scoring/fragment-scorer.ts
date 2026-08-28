@@ -2,6 +2,7 @@ import type { AttributeCandidate } from "@/content/analyzer/scoring/attribute-ca
 import type { SelectorFragment } from "@/content/selector/selector-fragment";
 import { clampScore } from "@/content/scoring/scoring-config";
 import { isGeneratedLikeToken } from "@/content/analyzer/attributes/generated-token";
+import { queryAllDeep } from "@/content/analyzer/dom/deep-query";
 
 export class FragmentScorer {
 
@@ -51,12 +52,7 @@ export class FragmentScorer {
             return cached;
         }
 
-        let count: number;
-        try {
-            count = document.querySelectorAll(selector).length;
-        } catch {
-            count = 0;
-        }
+        const count = queryAllDeep(selector).length;
 
         this.matchCache.set(selector, count);
 

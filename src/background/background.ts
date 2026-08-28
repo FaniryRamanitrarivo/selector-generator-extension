@@ -49,15 +49,42 @@ async function relayToActiveTab(
 }
 
 
+// Once all_frames lets the content script run in every same-origin/cross-origin
+// iframe of a tab, a click in one frame can leave every *other* still-active frame's
+// capturing listeners attached indefinitely — nothing ever tells them to stop. Relaying
+// STOP_INSPECTION tab-wide (all frames, since frameId is omitted) whenever a terminal
+// message comes back closes that gap; it's safe to also target the originating frame,
+// since inspector.ts's stopInspection() is idempotent and already ran there locally.
+async function stopAllFramesInTab(senderTabId: number | undefined) {
+
+    if(!senderTabId) {
+        return;
+    }
+
+    await browser.tabs.sendMessage(
+        senderTabId,
+        { type: MessageType.STOP_INSPECTION }
+    );
+
+}
+
 browser.runtime.onMessage.addListener(
     async (
-        message
+        message,
+        sender
     ) => {
 
         switch(message.type) {
 
 
             case MessageType.START_INSPECTION:
+
+                await relayToActiveTab(message);
+
+                break;
+
+
+            case MessageType.STOP_INSPECTION:
 
                 await relayToActiveTab(message);
 
@@ -77,6 +104,8 @@ browser.runtime.onMessage.addListener(
                     message
                 );
 
+                await stopAllFramesInTab(sender.tab?.id);
+
                 break;
 
 
@@ -95,6 +124,8 @@ browser.runtime.onMessage.addListener(
                     message
                 );
 
+                await stopAllFramesInTab(sender.tab?.id);
+
                 break;
 
 
@@ -103,6 +134,8 @@ browser.runtime.onMessage.addListener(
                 await browser.runtime.sendMessage(
                     message
                 );
+
+                await stopAllFramesInTab(sender.tab?.id);
 
                 break;
 

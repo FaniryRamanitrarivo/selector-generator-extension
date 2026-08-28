@@ -7,6 +7,10 @@ import {
     buildDOMContext
 } from "../analyzer/dom-context";
 
+import {
+    getParentAcrossShadow
+} from "../analyzer/dom/shadow-aware-parent";
+
 
 import {
     SelectorGenerationPipeline
@@ -51,7 +55,10 @@ function mouseMove(
     event: MouseEvent
 ) {
 
-    const target = event.target as HTMLElement;
+    // composedPath()[0], not event.target: inside a shadow root, event.target is
+    // retargeted to the shadow host (standard DOM event retargeting), which would
+    // highlight/select the host box instead of the actual hovered descendant.
+    const target = event.composedPath()[0] as HTMLElement;
 
     if(target) {
         highlight(target);
@@ -70,10 +77,12 @@ function buildSelectionPath(
 
     // Stops at <body> (inclusive) — matches DOMContext's own ancestor
     // cutoff, and going further up to <html>/document is never a
-    // meaningful selection target.
+    // meaningful selection target. Crosses shadow-root boundaries (unlike
+    // DOMContext's own walk) since the user may deliberately want to adjust
+    // out into the light DOM host chain.
     while (current && current !== document.body) {
 
-        current = current.parentElement;
+        current = getParentAcrossShadow(current) as HTMLElement | null;
 
         if (current) {
             path.push(current);
@@ -212,8 +221,10 @@ function click(
 
     }
 
+    // Same retargeting concern as mouseMove() — composedPath()[0] is the true
+    // deepest target even inside a shadow root.
     const target =
-        event.target as HTMLElement;
+        event.composedPath()[0] as HTMLElement;
 
     // Arrow-key adjustment requires knowing the DOM well enough to pick a
     // meaningful ancestor over the exact element under the cursor — a

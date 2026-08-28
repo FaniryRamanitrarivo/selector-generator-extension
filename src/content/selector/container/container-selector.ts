@@ -8,6 +8,7 @@ import type { FragmentScorer } from "@/content/selector/scoring/fragment-scorer"
 import { SelectorValidator } from "@/content/selector/validator/selector-validator";
 import type { SelectorPart } from "@/content/selector/selector-part";
 import type { SelectorFragment } from "@/content/selector/selector-fragment";
+import { queryAllDeep } from "@/content/analyzer/dom/deep-query";
 
 // An ancestor is considered a good semantic section boundary once its combined
 // semantic-token + structural-tag score reaches this threshold (see
@@ -292,7 +293,7 @@ export class ContainerSelector {
                 continue;
             }
 
-            if (ancestor.element && document.querySelector(selector) !== ancestor.element) {
+            if (ancestor.element && !queryAllDeep(selector).includes(ancestor.element)) {
                 continue;
             }
 
@@ -462,7 +463,7 @@ export class ContainerSelector {
                 continue;
             }
 
-            if (ancestor.element && document.querySelector(selector) !== ancestor.element) {
+            if (ancestor.element && !queryAllDeep(selector).includes(ancestor.element)) {
                 continue;
             }
 

@@ -33,6 +33,8 @@ export default {
                 "content.js"
             ],
 
+            all_frames: true,
+
             run_at: "document_idle"
         }
     ]
