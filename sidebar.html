@@ -6,6 +6,18 @@
     <title>
         Selector Generator
     </title>
+    <style>
+        /* Avoids a flash of the wrong background before React paints — matches
+           the <main> element's bg-slate-50/dark:bg-slate-950 in App.tsx. */
+        html {
+            background: #f8fafc;
+        }
+        @media (prefers-color-scheme: dark) {
+            html {
+                background: #020617;
+            }
+        }
+    </style>
 </head>
 
 <body>

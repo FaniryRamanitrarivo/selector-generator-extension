@@ -5,8 +5,15 @@ import { sendMessage } from "@/messaging/messenger";
 import type { GeneratedSelector } from "@/content/selector/generated-selector";
 import type { SelectionState } from "@/content/inspector/inspector";
 import { getSelectorQualityLabel, getSelectorQualityTier, SELECTOR_QUALITY_STYLES } from "./selector-quality";
+import { CheckIcon, ChevronIcon, ClipboardIcon, TargetIcon } from "./icons";
 
 const MAX_ALTERNATIVES = 5;
+
+// Shared so every interactive element (buttons, toggles, breadcrumb, <summary>)
+// gets an identical, clearly visible keyboard-focus ring in both themes.
+const FOCUS_RING =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 " +
+    "focus-visible:ring-blue-500 dark:focus-visible:ring-blue-400 dark:ring-offset-slate-900";
 
 export default function App() {
 
@@ -143,89 +150,102 @@ export default function App() {
                 : `Ce sélecteur correspond à ${best.count} éléments différents, il ne cible pas un élément unique. Activez « Sélection multiple » si c'est voulu, ou ajustez-le manuellement.`;
 
     return (
-        <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-900">
+        <main className="min-h-screen bg-slate-50 p-4 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
 
             <header className="mb-4">
                 <h1 className="text-lg font-semibold tracking-tight">
                     Selector Generator
                 </h1>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                     Cliquez sur un élément de la page pour générer son sélecteur CSS.
                 </p>
             </header>
 
-            <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
-                <label className="flex cursor-pointer items-start justify-between gap-3">
-                    <span>
-                        <span className="block text-sm font-medium text-slate-800">
-                            Mode développeur
-                        </span>
-                        <span className="block text-xs text-slate-500">
-                            Ajustez l'élément ciblé avec les flèches (↑ parent / ↓ enfant) avant de valider.
-                        </span>
+                <div className="flex flex-col">
+
+                    <span className="mb-1 text-[10px] font-semibold tracking-wide text-slate-400 uppercase dark:text-slate-500">
+                        Options
                     </span>
 
-                    <button
-                        type="button"
-                        role="switch"
-                        aria-checked={devMode}
-                        disabled={inspecting}
-                        onClick={toggleDevMode}
-                        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-                            devMode ? "bg-blue-600" : "bg-slate-300"
-                        }`}
-                    >
-                        <span
-                            className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                                devMode ? "translate-x-5" : "translate-x-0"
-                            }`}
-                        />
-                    </button>
-                </label>
+                    <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
 
-                <label className="flex cursor-pointer items-start justify-between gap-3">
-                    <span>
-                        <span className="block text-sm font-medium text-slate-800">
-                            Sélection multiple
-                        </span>
-                        <span className="block text-xs text-slate-500">
-                            Cible tous les éléments similaires (ex. toutes les tailles) plutôt qu'un seul.
-                        </span>
-                    </span>
+                        <label className="flex cursor-pointer items-start justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                            <span>
+                                <span className="block text-sm font-medium text-slate-800 dark:text-slate-200">
+                                    Mode développeur
+                                </span>
+                                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                    Ajustez l'élément ciblé avec les flèches (↑ parent / ↓ enfant) avant de valider.
+                                </span>
+                            </span>
 
-                    <button
-                        type="button"
-                        role="switch"
-                        aria-checked={multiResultMode}
-                        disabled={inspecting}
-                        onClick={() => setMultiResultMode(value => !value)}
-                        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-                            multiResultMode ? "bg-blue-600" : "bg-slate-300"
-                        }`}
-                    >
-                        <span
-                            className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                                multiResultMode ? "translate-x-5" : "translate-x-0"
-                            }`}
-                        />
-                    </button>
-                </label>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={devMode}
+                                disabled={inspecting}
+                                onClick={toggleDevMode}
+                                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${FOCUS_RING} ${
+                                    devMode ? "bg-blue-600 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-700"
+                                }`}
+                            >
+                                <span
+                                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                        devMode ? "translate-x-5" : "translate-x-0"
+                                    }`}
+                                />
+                            </button>
+                        </label>
+
+                        <label className="flex cursor-pointer items-start justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                            <span>
+                                <span className="block text-sm font-medium text-slate-800 dark:text-slate-200">
+                                    Sélection multiple
+                                </span>
+                                <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                    Cible tous les éléments similaires (ex. toutes les tailles) plutôt qu'un seul.
+                                </span>
+                            </span>
+
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={multiResultMode}
+                                disabled={inspecting}
+                                onClick={() => setMultiResultMode(value => !value)}
+                                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${FOCUS_RING} ${
+                                    multiResultMode ? "bg-blue-600 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-700"
+                                }`}
+                            >
+                                <span
+                                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                        multiResultMode ? "translate-x-5" : "translate-x-0"
+                                    }`}
+                                />
+                            </button>
+                        </label>
+
+                    </div>
+
+                </div>
 
                 <button
                     onClick={inspecting ? cancelInspection : startInspection}
-                    className={`w-full rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
+                    className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${FOCUS_RING} ${
                         inspecting
-                            ? "bg-slate-500 hover:bg-slate-600"
-                            : "bg-blue-600 hover:bg-blue-700"
+                            ? "bg-slate-500 hover:bg-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600"
+                            : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
                     }`}
                 >
+                    <TargetIcon className="h-4 w-4" aria-hidden="true" />
                     {inspecting ? "Annuler l'inspection" : "Inspecter"}
                 </button>
 
                 {inspecting && (
-                    <p className="flex items-center gap-2 text-xs text-slate-500">
-                        <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+                    <p className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500 dark:bg-blue-400" />
                         {devMode
                             ? "Cliquez sur un élément, ajustez avec ↑ / ↓, validez avec ↵."
                             : "En attente d'un clic sur la page..."}
@@ -233,9 +253,9 @@ export default function App() {
                 )}
 
                 {devMode && inspecting && selection && selection.path.length > 0 && (
-                    <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-950/60">
 
-                        <span className="text-xs font-medium text-slate-500">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                             Élément ciblé
                         </span>
 
@@ -263,7 +283,7 @@ export default function App() {
                                                 <span
                                                     key={i}
                                                     aria-hidden="true"
-                                                    className="w-3 shrink-0 border-r border-slate-200"
+                                                    className="w-3 shrink-0 border-r border-slate-200 dark:border-slate-800"
                                                 />
                                             ))}
 
@@ -271,26 +291,26 @@ export default function App() {
                                                 type="button"
                                                 onClick={() => selectBreadcrumbNode(originalIndex)}
                                                 title={isClickedElement ? "Élément cliqué" : undefined}
-                                                className={`flex min-w-0 flex-1 items-center gap-1 truncate rounded-md border-l-2 px-2 py-1 text-left font-mono text-xs transition-colors ${
+                                                className={`flex min-w-0 flex-1 items-center gap-1 truncate rounded-md border-l-2 px-2 py-1 text-left font-mono text-xs transition-colors ${FOCUS_RING} ${
                                                     isActive
-                                                        ? "border-indigo-500 bg-indigo-50 font-semibold"
-                                                        : "border-transparent text-slate-600 hover:bg-slate-100"
+                                                        ? "border-indigo-500 bg-indigo-50 font-semibold dark:bg-indigo-950/40"
+                                                        : "border-transparent text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                                                 }`}
                                             >
                                                 {isClickedElement && (
                                                     <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
                                                 )}
 
-                                                <span className={isActive ? "text-indigo-700" : "text-slate-700"}>
+                                                <span className={isActive ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-slate-300"}>
                                                     {node.tagName}
                                                 </span>
 
                                                 {node.id && (
-                                                    <span className="text-amber-600">#{node.id}</span>
+                                                    <span className="text-amber-600 dark:text-amber-400">#{node.id}</span>
                                                 )}
 
                                                 {node.classes.length > 0 && (
-                                                    <span className="truncate text-emerald-600">
+                                                    <span className="truncate text-emerald-600 dark:text-emerald-400">
                                                         .{node.classes.join(".")}
                                                     </span>
                                                 )}
@@ -306,29 +326,30 @@ export default function App() {
 
             </section>
 
-            <section className="mt-4">
+            <section className="mt-4" aria-live="polite" aria-atomic="false">
 
                 {!inspecting && !hasRun && (
-                    <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400">
+                    <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400 dark:border-slate-700 dark:text-slate-500">
                         Aucun sélecteur généré pour l'instant.
                     </p>
                 )}
 
                 {!inspecting && hasRun && lastError && (
-                    <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
+                    <p className="rounded-lg border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                         Échec de la génération du sélecteur : {lastError}
                     </p>
                 )}
 
                 {!inspecting && hasRun && !lastError && results.length === 0 && (
-                    <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400">
+                    <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400 dark:border-slate-700 dark:text-slate-500">
                         Aucun sélecteur n'a pu être généré pour cet élément.
                     </p>
                 )}
 
                 {best && (
                     <div
-                        className={`flex flex-col gap-2 rounded-xl border p-4 ${bestQualityStyle.border} ${bestQualityStyle.bg}`}
+                        key={best.selector}
+                        className={`animate-fade-in flex flex-col gap-2 rounded-xl border p-4 ${bestQualityStyle.border} ${bestQualityStyle.bg}`}
                     >
 
                         <div className="flex items-center justify-between gap-2">
@@ -338,7 +359,7 @@ export default function App() {
 
                             <span className="flex items-center gap-1.5">
                                 <span
-                                    className={`flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-medium ${bestQualityStyle.text}`}
+                                    className={`flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-medium dark:bg-slate-900 ${bestQualityStyle.text}`}
                                 >
                                     <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${bestQualityStyle.dot}`} />
                                     {bestQualityLabel}
@@ -359,21 +380,33 @@ export default function App() {
                         )}
 
                         {best.insideShadowRoot && (
-                            <p className="text-xs text-amber-700">
+                            <p className="text-xs text-amber-700 dark:text-amber-400">
                                 ⚠ Cet élément est dans un Shadow DOM — utilisez{" "}
                                 <code>hostElement.shadowRoot.querySelector(...)</code>, pas{" "}
                                 <code>document.querySelector(...)</code> directement.
                             </p>
                         )}
 
-                        <code className="block overflow-x-auto rounded-lg bg-white p-2 text-sm text-slate-800">
-                            {best.selector}
-                        </code>
+                        <button
+                            type="button"
+                            onClick={() => copySelector(best.selector)}
+                            title="Copier le sélecteur"
+                            className={`group relative block w-full rounded-lg bg-white p-2 pr-8 text-left text-sm break-all whitespace-pre-wrap text-slate-800 transition-colors hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 ${FOCUS_RING}`}
+                        >
+                            <code>{best.selector}</code>
+                            <ClipboardIcon
+                                aria-hidden="true"
+                                className="absolute top-2 right-2 h-4 w-4 text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:text-slate-500"
+                            />
+                        </button>
 
                         <button
                             onClick={() => copySelector(best.selector)}
-                            className={`self-start rounded-md px-3 py-1.5 text-xs font-medium text-white ${bestQualityStyle.badge} ${bestQualityStyle.badgeHover}`}
+                            className={`flex items-center gap-1.5 self-start rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors ${FOCUS_RING} ${bestQualityStyle.badge} ${bestQualityStyle.badgeHover}`}
                         >
+                            {copiedSelector === best.selector
+                                ? <CheckIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                                : <ClipboardIcon aria-hidden="true" className="h-3.5 w-3.5" />}
                             {copiedSelector === best.selector ? "Copié !" : "Copier"}
                         </button>
 
@@ -381,8 +414,11 @@ export default function App() {
                 )}
 
                 {alternatives.length > 0 && (
-                    <details className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-                        <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                    <details className="group mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                        <summary
+                            className={`flex cursor-pointer items-center gap-1.5 rounded text-sm font-medium text-slate-700 [&::-webkit-details-marker]:hidden dark:text-slate-300 ${FOCUS_RING}`}
+                        >
+                            <ChevronIcon aria-hidden="true" className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
                             Autres options ({Math.min(alternatives.length, MAX_ALTERNATIVES)})
                         </summary>
 
@@ -396,7 +432,7 @@ export default function App() {
                                 return (
                                     <li
                                         key={result.selector}
-                                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2"
+                                        className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 dark:bg-slate-950/60"
                                     >
                                         <span
                                             aria-hidden="true"
@@ -404,7 +440,10 @@ export default function App() {
                                             className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`}
                                         />
 
-                                        <code className="min-w-0 flex-1 truncate text-xs text-slate-700">
+                                        <code
+                                            title={result.selector}
+                                            className="min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-300"
+                                        >
                                             {result.selector}
                                         </code>
 
@@ -417,9 +456,13 @@ export default function App() {
 
                                         <button
                                             onClick={() => copySelector(result.selector)}
-                                            className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                                            aria-label="Copier"
+                                            title="Copier"
+                                            className={`shrink-0 rounded-md border border-slate-300 p-1.5 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 ${FOCUS_RING}`}
                                         >
-                                            {copiedSelector === result.selector ? "Copié !" : "Copier"}
+                                            {copiedSelector === result.selector
+                                                ? <CheckIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                                                : <ClipboardIcon aria-hidden="true" className="h-3.5 w-3.5" />}
                                         </button>
                                     </li>
                                 );

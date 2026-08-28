@@ -51,25 +51,25 @@ export const SELECTOR_QUALITY_STYLES: Record<SelectorQualityTier, {
     dot: string;
 }> = {
     good: {
-        border: "border-emerald-200",
-        bg: "bg-emerald-50",
-        text: "text-emerald-700",
+        border: "border-emerald-200 dark:border-emerald-900",
+        bg: "bg-emerald-50 dark:bg-emerald-950/40",
+        text: "text-emerald-700 dark:text-emerald-300",
         badge: "bg-emerald-600",
         badgeHover: "hover:bg-emerald-700",
         dot: "bg-emerald-500"
     },
     warning: {
-        border: "border-amber-200",
-        bg: "bg-amber-50",
-        text: "text-amber-700",
+        border: "border-amber-200 dark:border-amber-900",
+        bg: "bg-amber-50 dark:bg-amber-950/40",
+        text: "text-amber-700 dark:text-amber-300",
         badge: "bg-amber-500",
         badgeHover: "hover:bg-amber-600",
         dot: "bg-amber-500"
     },
     bad: {
-        border: "border-red-200",
-        bg: "bg-red-50",
-        text: "text-red-700",
+        border: "border-red-200 dark:border-red-900",
+        bg: "bg-red-50 dark:bg-red-950/40",
+        text: "text-red-700 dark:text-red-300",
         badge: "bg-red-600",
         badgeHover: "hover:bg-red-700",
         dot: "bg-red-500"
