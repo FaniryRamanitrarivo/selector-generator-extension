@@ -29,6 +29,15 @@ export function ChevronIcon(props: SVGProps<SVGSVGElement>) {
     );
 }
 
+export function ClockIcon(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+            <circle cx="10" cy="10" r="6.5" />
+            <path d="M10 6.25V10l2.75 1.75" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
 export function TargetIcon(props: SVGProps<SVGSVGElement>) {
     return (
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>

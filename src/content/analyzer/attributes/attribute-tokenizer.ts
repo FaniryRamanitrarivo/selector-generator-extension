@@ -23,6 +23,16 @@ export function shouldTokenize(
 
 }
 
+// Tokens shorter than this are dropped rather than turned into selector candidates.
+// Utility-CSS frameworks (Tailwind, etc.) pack class lists with short hyphenated
+// fragments like "p-4", "mt-2", "sm", "bg" — splitting on "-"/"_" alone (see below)
+// turns each one into its own token, and with no length floor those meaningless
+// 1-2 character tokens end up scored and validated exactly like real words, which
+// is both how unreadable fragments (e.g. [class*="p"]) get generated and a big
+// source of the combinatorial blowup in ContainerSelector's fallback pass (each
+// extra token is more candidates × more querySelectorAll validations).
+const MIN_TOKEN_LENGTH = 3;
+
 export function tokenizeAttribute(
     value: string
 ): string[] {
@@ -48,7 +58,7 @@ export function tokenizeAttribute(
             normalized
                 .split(/\s+/)
                 .map(token => token.trim())
-                .filter(Boolean)
+                .filter(token => token.length >= MIN_TOKEN_LENGTH)
         )
     ];
 

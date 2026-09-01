@@ -3,11 +3,29 @@ import { useEffect, useState } from "react";
 import { MessageType } from "@/messaging/messages";
 import { sendMessage } from "@/messaging/messenger";
 import type { GeneratedSelector } from "@/content/selector/generated-selector";
-import type { SelectionState } from "@/content/inspector/inspector";
-import { getSelectorQualityLabel, getSelectorQualityTier, SELECTOR_QUALITY_STYLES } from "./selector-quality";
-import { CheckIcon, ChevronIcon, ClipboardIcon, TargetIcon } from "./icons";
+import type { ElementSelectedPayload, SelectionState } from "@/content/inspector/inspector";
+import { getSelectorQualityLabel, getSelectorQualityTier, SELECTOR_QUALITY_STYLES, type SelectorQualityTier } from "./selector-quality";
+import { CheckIcon, ChevronIcon, ClipboardIcon, ClockIcon, TargetIcon } from "./icons";
 
 const MAX_ALTERNATIVES = 5;
+
+// Below this, generation is imperceptible to the user; above it, the pipeline
+// is doing real work (e.g. ContainerSelector's combined-fragment fallback
+// walking many ancestors) worth calling out; past the upper bound it's the
+// kind of run that visibly stalls the page — see CLAUDE.md notes on
+// utility-CSS pages (Tailwind etc.) producing this exact symptom.
+const GENERATION_TIME_WARNING_MS = 150;
+const GENERATION_TIME_BAD_MS = 600;
+
+function getGenerationTimeTier(ms: number): SelectorQualityTier {
+    if (ms < GENERATION_TIME_WARNING_MS) return "good";
+    if (ms < GENERATION_TIME_BAD_MS) return "warning";
+    return "bad";
+}
+
+function formatGenerationTime(ms: number): string {
+    return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`;
+}
 
 // Shared so every interactive element (buttons, toggles, breadcrumb, <summary>)
 // gets an identical, clearly visible keyboard-focus ring in both themes.
@@ -27,6 +45,7 @@ export default function App() {
     // both used to render the exact same empty-state message.
     const [hasRun, setHasRun] = useState(false);
     const [lastError, setLastError] = useState<string | null>(null);
+    const [generationTimeMs, setGenerationTimeMs] = useState<number | null>(null);
     // multiResultMode as it was when the currently-displayed results were
     // requested, not the live toggle value — the toggle is disabled while
     // inspecting, but nothing stops the user from flipping it *after*
@@ -39,7 +58,9 @@ export default function App() {
         const listener = (message: { type?: string; payload?: unknown }) => {
 
             if (message.type === MessageType.ELEMENT_SELECTED) {
-                setResults((message.payload as GeneratedSelector[]) ?? []);
+                const payload = message.payload as ElementSelectedPayload | undefined;
+                setResults(payload?.results ?? []);
+                setGenerationTimeMs(payload?.generationTimeMs ?? null);
                 setLastError(null);
                 setHasRun(true);
                 setInspecting(false);
@@ -47,6 +68,7 @@ export default function App() {
 
             if (message.type === MessageType.INSPECTION_ERROR) {
                 setResults([]);
+                setGenerationTimeMs(null);
                 setLastError((message.payload as string) ?? "Erreur inconnue.");
                 setHasRun(true);
                 setInspecting(false);
@@ -96,6 +118,7 @@ export default function App() {
 
         setResults([]);
         setLastError(null);
+        setGenerationTimeMs(null);
         setSelection(null);
         setInspecting(true);
         setResultsMultiResultMode(multiResultMode);
@@ -140,6 +163,9 @@ export default function App() {
     const bestQualityTier = best ? getSelectorQualityTier(best.count, resultsMultiResultMode) : "good";
     const bestQualityStyle = SELECTOR_QUALITY_STYLES[bestQualityTier];
     const bestQualityLabel = getSelectorQualityLabel(bestQualityTier, resultsMultiResultMode);
+
+    const generationTimeTier = generationTimeMs !== null ? getGenerationTimeTier(generationTimeMs) : null;
+    const generationTimeStyle = generationTimeTier ? SELECTOR_QUALITY_STYLES[generationTimeTier] : null;
 
     const bestWarning = !best || bestQualityTier === "good"
         ? null
@@ -343,6 +369,11 @@ export default function App() {
                 {!inspecting && hasRun && !lastError && results.length === 0 && (
                     <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400 dark:border-slate-700 dark:text-slate-500">
                         Aucun sélecteur n'a pu être généré pour cet élément.
+                        {generationTimeMs !== null && (
+                            <span className="mt-1 block text-xs">
+                                Temps de génération : {formatGenerationTime(generationTimeMs)}
+                            </span>
+                        )}
                     </p>
                 )}
 
@@ -370,6 +401,16 @@ export default function App() {
                                 >
                                     {best.count} {best.count > 1 ? "correspondances" : "correspondance"}
                                 </span>
+
+                                {generationTimeMs !== null && generationTimeStyle && (
+                                    <span
+                                        title="Temps de génération du sélecteur"
+                                        className={`flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-medium dark:bg-slate-900 ${generationTimeStyle.text}`}
+                                    >
+                                        <ClockIcon aria-hidden="true" className="h-3 w-3" />
+                                        {formatGenerationTime(generationTimeMs)}
+                                    </span>
+                                )}
                             </span>
                         </div>
 

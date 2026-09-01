@@ -21,8 +21,20 @@ import {
     MessageType
 } from "@/messaging/messages";
 
+import type {
+    GeneratedSelector
+} from "../selector/generated-selector";
+
 
 export type InspectionOptions = { multiResultMode?: boolean; devMode?: boolean };
+
+// ELEMENT_SELECTED payload — bundles the generated selectors with how long the
+// pipeline took to produce them, so the sidebar can surface generation time
+// (see App.tsx) instead of the user only noticing a slow/frozen page.
+export interface ElementSelectedPayload {
+    results: GeneratedSelector[];
+    generationTimeMs: number;
+}
 
 // Lightweight, serializable stand-in for an HTMLElement — the sidebar lives
 // in a separate JS context and can't hold a live DOM reference, so this is
@@ -166,6 +178,8 @@ function confirmSelection() {
 
     removeHighlight();
 
+    const startTime = performance.now();
+
     try {
 
         const context = buildDOMContext(target);
@@ -174,11 +188,13 @@ function confirmSelection() {
 
         const result = pipeline.generate(context, target, inspectionOptions);
 
+        const generationTimeMs = performance.now() - startTime;
+
         browser.runtime.sendMessage({
 
             type: MessageType.ELEMENT_SELECTED,
 
-            payload: result
+            payload: { results: result, generationTimeMs } satisfies ElementSelectedPayload
 
         });
 
