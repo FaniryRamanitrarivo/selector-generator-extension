@@ -13,6 +13,7 @@ import { SelectorLengthRule } from "@/content/analyzer/scoring/rules/selector-le
 import { SelectorCountNormalizer } from "@/content/analyzer/scoring/selector-count-normalizer";
 import { ContainerSelector } from "../container/container-selector";
 import type { SelectorPart } from "../selector-part";
+import { resetDeepQueryCache } from "@/content/analyzer/dom/deep-query";
 
 export class SelectorGenerationPipeline {
 
@@ -46,6 +47,8 @@ export class SelectorGenerationPipeline {
         target: HTMLElement,
         options: { multiResultMode?: boolean } = {}
     ) {
+        resetDeepQueryCache();
+
         const multiResultMode = options.multiResultMode ?? false;
         const targetPart = this.buildTargetPart(context.element, multiResultMode);
         const containerSelection = this.containerSelector.select(context, multiResultMode);
