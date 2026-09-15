@@ -28,12 +28,28 @@ import type {
 
 export type InspectionOptions = { multiResultMode?: boolean; devMode?: boolean };
 
+// Bug reports embed the target's outerHTML for offline inspection later —
+// capped so a report on a deeply-nested target (whose outerHTML includes
+// every descendant) can't balloon the exported JSON or storage.local quota.
+const MAX_REPORTED_HTML_LENGTH = 4000;
+
+function truncateHtml(html: string): string {
+    return html.length > MAX_REPORTED_HTML_LENGTH
+        ? `${html.slice(0, MAX_REPORTED_HTML_LENGTH)}…`
+        : html;
+}
+
 // ELEMENT_SELECTED payload — bundles the generated selectors with how long the
 // pipeline took to produce them, so the sidebar can surface generation time
-// (see App.tsx) instead of the user only noticing a slow/frozen page.
+// (see App.tsx), plus enough page/target context (pageUrl, pageTitle,
+// targetOuterHTML) for the sidebar's bug-reporting feature to save a
+// self-contained report without asking the content script for anything else.
 export interface ElementSelectedPayload {
     results: GeneratedSelector[];
     generationTimeMs: number;
+    pageUrl: string;
+    pageTitle: string;
+    targetOuterHTML: string;
 }
 
 // Lightweight, serializable stand-in for an HTMLElement — the sidebar lives
@@ -194,7 +210,13 @@ function confirmSelection() {
 
             type: MessageType.ELEMENT_SELECTED,
 
-            payload: { results: result, generationTimeMs } satisfies ElementSelectedPayload
+            payload: {
+                results: result,
+                generationTimeMs,
+                pageUrl: location.href,
+                pageTitle: document.title,
+                targetOuterHTML: truncateHtml(target.outerHTML)
+            } satisfies ElementSelectedPayload
 
         });
 

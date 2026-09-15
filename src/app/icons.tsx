@@ -46,3 +46,30 @@ export function TargetIcon(props: SVGProps<SVGSVGElement>) {
         </svg>
     );
 }
+
+export function FlagIcon(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+            <path d="M5 3v14" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5 4h8.5a1 1 0 0 1 .8 1.6l-1.9 2.4 1.9 2.4a1 1 0 0 1-.8 1.6H5V4Z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+export function DownloadIcon(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+            <path d="M10 3v9.5M6.5 9l3.5 3.5L13.5 9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 14.5v1A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5v-1" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
+export function TrashIcon(props: SVGProps<SVGSVGElement>) {
+    return (
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} {...props}>
+            <path d="M4.5 5.5h11M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M8.5 9v5M11.5 9v5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5.5 5.5 6.2 15a1.5 1.5 0 0 0 1.5 1.4h4.6a1.5 1.5 0 0 0 1.5-1.4l.7-9.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}

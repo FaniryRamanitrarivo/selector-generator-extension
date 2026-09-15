@@ -5,7 +5,8 @@ import { sendMessage } from "@/messaging/messenger";
 import type { GeneratedSelector } from "@/content/selector/generated-selector";
 import type { ElementSelectedPayload, SelectionState } from "@/content/inspector/inspector";
 import { getSelectorQualityLabel, getSelectorQualityTier, SELECTOR_QUALITY_STYLES, type SelectorQualityTier } from "./selector-quality";
-import { CheckIcon, ChevronIcon, ClipboardIcon, ClockIcon, TargetIcon } from "./icons";
+import { CheckIcon, ChevronIcon, ClipboardIcon, ClockIcon, DownloadIcon, FlagIcon, TargetIcon, TrashIcon } from "./icons";
+import { addBugReport, clearBugReports, downloadBugReportsAsJson, loadBugReports } from "./bug-report";
 
 const MAX_ALTERNATIVES = 5;
 
@@ -53,6 +54,21 @@ export default function App() {
     // those results are judged (see the non-unique-selector warning below).
     const [resultsMultiResultMode, setResultsMultiResultMode] = useState(false);
 
+    // Page/target context bundled with the last ELEMENT_SELECTED message —
+    // kept alongside `results` purely so a bug report can be assembled
+    // without asking the content script for anything else after the fact.
+    const [reportContext, setReportContext] = useState<{ pageUrl: string; pageTitle: string; targetOuterHTML: string } | null>(null);
+    const [reportCount, setReportCount] = useState(0);
+    const [showReportForm, setShowReportForm] = useState(false);
+    const [reportComment, setReportComment] = useState("");
+    const [reportSaved, setReportSaved] = useState(false);
+
+    useEffect(() => {
+
+        loadBugReports().then(reports => setReportCount(reports.length));
+
+    }, []);
+
     useEffect(() => {
 
         const listener = (message: { type?: string; payload?: unknown }) => {
@@ -61,6 +77,12 @@ export default function App() {
                 const payload = message.payload as ElementSelectedPayload | undefined;
                 setResults(payload?.results ?? []);
                 setGenerationTimeMs(payload?.generationTimeMs ?? null);
+                setReportContext(payload
+                    ? { pageUrl: payload.pageUrl, pageTitle: payload.pageTitle, targetOuterHTML: payload.targetOuterHTML }
+                    : null);
+                setShowReportForm(false);
+                setReportComment("");
+                setReportSaved(false);
                 setLastError(null);
                 setHasRun(true);
                 setInspecting(false);
@@ -120,6 +142,10 @@ export default function App() {
         setLastError(null);
         setGenerationTimeMs(null);
         setSelection(null);
+        setReportContext(null);
+        setShowReportForm(false);
+        setReportComment("");
+        setReportSaved(false);
         setInspecting(true);
         setResultsMultiResultMode(multiResultMode);
 
@@ -127,6 +153,44 @@ export default function App() {
             type: MessageType.START_INSPECTION,
             payload: { multiResultMode, devMode }
         });
+
+    }
+
+    async function submitBugReport() {
+
+        if (!reportContext) return;
+
+        const next = await addBugReport({
+            pageUrl: reportContext.pageUrl,
+            pageTitle: reportContext.pageTitle,
+            targetOuterHTML: reportContext.targetOuterHTML,
+            options: { multiResultMode: resultsMultiResultMode, devMode },
+            generationTimeMs: generationTimeMs ?? 0,
+            results,
+            comment: reportComment.trim()
+        });
+
+        setReportCount(next.length);
+        setReportSaved(true);
+        setShowReportForm(false);
+        setReportComment("");
+
+    }
+
+    async function exportBugReports() {
+
+        const reports = await loadBugReports();
+
+        if (reports.length === 0) return;
+
+        downloadBugReportsAsJson(reports);
+
+    }
+
+    async function clearReports() {
+
+        await clearBugReports();
+        setReportCount(0);
 
     }
 
@@ -185,6 +249,34 @@ export default function App() {
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                     Cliquez sur un élément de la page pour générer son sélecteur CSS.
                 </p>
+
+                {reportCount > 0 && (
+                    <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                        <span>
+                            {reportCount} rapport{reportCount > 1 ? "s" : ""} enregistré{reportCount > 1 ? "s" : ""}
+                        </span>
+
+                        <span className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={exportBugReports}
+                                className={`flex items-center gap-1 rounded-md px-2 py-1 font-medium text-amber-800 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40 ${FOCUS_RING}`}
+                            >
+                                <DownloadIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                                Exporter
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={clearReports}
+                                title="Vider les rapports enregistrés"
+                                className={`flex items-center gap-1 rounded-md px-2 py-1 text-amber-700 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-900/40 ${FOCUS_RING}`}
+                            >
+                                <TrashIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                            </button>
+                        </span>
+                    </div>
+                )}
             </header>
 
             <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -441,15 +533,74 @@ export default function App() {
                             />
                         </button>
 
-                        <button
-                            onClick={() => copySelector(best.selector)}
-                            className={`flex items-center gap-1.5 self-start rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors ${FOCUS_RING} ${bestQualityStyle.badge} ${bestQualityStyle.badgeHover}`}
-                        >
-                            {copiedSelector === best.selector
-                                ? <CheckIcon aria-hidden="true" className="h-3.5 w-3.5" />
-                                : <ClipboardIcon aria-hidden="true" className="h-3.5 w-3.5" />}
-                            {copiedSelector === best.selector ? "Copié !" : "Copier"}
-                        </button>
+                        <div className="flex items-center gap-2">
+
+                            <button
+                                onClick={() => copySelector(best.selector)}
+                                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white transition-colors ${FOCUS_RING} ${bestQualityStyle.badge} ${bestQualityStyle.badgeHover}`}
+                            >
+                                {copiedSelector === best.selector
+                                    ? <CheckIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                                    : <ClipboardIcon aria-hidden="true" className="h-3.5 w-3.5" />}
+                                {copiedSelector === best.selector ? "Copié !" : "Copier"}
+                            </button>
+
+                            {reportContext && !reportSaved && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowReportForm(value => !value)}
+                                    className={`flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 ${FOCUS_RING}`}
+                                >
+                                    <FlagIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                                    Signaler un problème
+                                </button>
+                            )}
+
+                            {reportSaved && (
+                                <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                                    <CheckIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                                    Rapport enregistré
+                                </span>
+                            )}
+
+                        </div>
+
+                        {showReportForm && (
+                            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+
+                                <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                    Qu'est-ce qui ne va pas avec ce résultat ? (optionnel)
+                                </label>
+
+                                <textarea
+                                    value={reportComment}
+                                    onChange={event => setReportComment(event.target.value)}
+                                    rows={2}
+                                    placeholder="Ex. le sélecteur cible un élément similaire dans une autre section..."
+                                    className={`w-full resize-none rounded-md border border-slate-300 bg-white p-2 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 ${FOCUS_RING}`}
+                                />
+
+                                <div className="flex items-center gap-2 self-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowReportForm(false)}
+                                        className={`rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 ${FOCUS_RING}`}
+                                    >
+                                        Annuler
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={submitBugReport}
+                                        className={`flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 ${FOCUS_RING}`}
+                                    >
+                                        <FlagIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                                        Enregistrer le rapport
+                                    </button>
+                                </div>
+
+                            </div>
+                        )}
 
                     </div>
                 )}
