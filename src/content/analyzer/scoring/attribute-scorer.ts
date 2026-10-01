@@ -1,6 +1,6 @@
 import type { AttributeCandidate } from "./attribute-candidature";
 import type { WeightedScoringRule } from "./weighted-scoring-rule";
-import { normalizeWeightedScore, SCORING_WEIGHTS } from "@/content/scoring/scoring-config";
+import { normalizeWeightedScore } from "@/content/scoring/scoring-config";
 
 export class AttributeScorer {
 
@@ -23,7 +23,7 @@ export class AttributeScorer {
 
         return {
             ...candidate,
-            score: normalizeWeightedScore(score, totalWeight) * SCORING_WEIGHTS.attribute.category
+            score: normalizeWeightedScore(score, totalWeight)
         };
     }
 

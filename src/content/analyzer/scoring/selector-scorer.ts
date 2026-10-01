@@ -3,6 +3,7 @@ import type { BuildedSelector } from "@/content/selector/builder/selector-builde
 import type { SelectorEvaluation } from "@/content/selector/selector-evaluation";
 import { clampScore, SCORING_WEIGHTS } from "@/content/scoring/scoring-config";
 import { queryAllDeep } from "@/content/analyzer/dom/deep-query";
+import { getSemanticTier, SEMANTIC_VOCABULARY } from "@/content/analyzer/attributes/semantic-vocabulary";
 
 type SemanticMatch = {
     token: string;
@@ -80,36 +81,13 @@ const MATCH_COUNT_THRESHOLDS = [
 ];
 const MATCH_COUNT_FALLBACK_SCORE = 0.1;
 
-/**
- * Semantic hierarchy used to score how a selector reads from generic
- * structural context down to the actual target information:
- *
- * 1 = generic / structural context
- * 2 = contextual information
- * 3 = target-oriented information
- */
-const SEMANTIC_TOKEN_LEVELS: Record<string, number> = {
-    // Generic / structural context — says nothing about what's inside,
-    // matching one of these should not be treated as a strong signal.
-    page: 1, pages: 1, main: 1, header: 1, footer: 1,
-    sidebar: 1, navigation: 1, nav: 1, section: 1, menu: 1,
-
-    // Contextual information — narrows down to a generic container of
-    // information, but doesn't say precisely what that information is.
-    content: 2, information: 2, info: 2, details: 2, gallery: 2, hero: 2, cart: 2,
-
-    // Target-oriented information — names the exact piece of content being
-    // targeted, so it "speaks directly": you know exactly what you get.
-    // Domain-specific descriptors (composition, care, brand, manufacturer,
-    // category) belong here too — they're just as precise as price/title.
-    product: 3, products: 3, item: 3, items: 3, title: 3, name: 3,
-    price: 3, description: 3, category: 3, brand: 3, manufacturer: 3,
-    composition: 3, care: 3, size: 3, taille: 3, talla: 3,
-    color: 3, colour: 3, couleur: 3
-};
-
+// Semantic hierarchy used to score how a selector reads from generic structural context
+// down to the actual target information (1 = generic/structural, 2 = contextual,
+// 3 = target-oriented) — see semantic-vocabulary.ts for the shared tier definitions and
+// the full word list (also used by SemanticAttributeRule and FragmentScorer, so all three
+// scoring stages agree on what each word means).
 const SEMANTIC_TOKEN_PATTERN = new RegExp(
-    `\\b(${Object.keys(SEMANTIC_TOKEN_LEVELS).join("|")})\\b`,
+    `\\b(${Object.keys(SEMANTIC_VOCABULARY).join("|")})\\b`,
     "gi"
 );
 
@@ -530,7 +508,7 @@ export class SelectorScorer {
     }
 
     private getSemanticLevel(token: string): number {
-        return SEMANTIC_TOKEN_LEVELS[token] ?? 1;
+        return getSemanticTier(token) ?? 1;
     }
 
     private getSemanticDensityBonus(semanticCount: number, selectorLength: number): number {
@@ -552,11 +530,18 @@ export class SelectorScorer {
     }
 
     private getPrecisionScore(fragmentScore: number, selector: BuildedSelector): number {
-        const fragmentStrength = Math.max(0, fragmentScore / 20);
+        // fragmentScore is the *sum* of up to 2 per-part fragment scores (container +
+        // target), each already clamped to [0,1] by FragmentScorer — average them back
+        // down to [0,1] so this stays comparable to contextScore below instead of being
+        // permanently dwarfed by it (a /20 divisor here used to cap this at ~0.45, well
+        // under contextScore's 0.5 floor, making `effectivePrecision` always resolve to
+        // contextScore regardless of actual fragment quality).
+        const fragmentCount = selector.fragmentScores.length || 1;
+        const averageFragmentStrength = Math.max(0, fragmentScore / fragmentCount);
         const countPenalty =
             selector.selector.includes("[id*") || selector.selector.includes("[class*") ? 0.1 : 0;
 
-        return Math.min(1, 0.35 + fragmentStrength - countPenalty);
+        return Math.min(1, 0.35 + averageFragmentStrength * 0.65 - countPenalty);
     }
 
     private getUniquenessScore(selector: BuildedSelector): number {

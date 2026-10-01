@@ -1,8 +1,10 @@
 import type { AttributeCandidate } from "@/content/analyzer/scoring/attribute-candidature";
 import type { SelectorFragment } from "@/content/selector/selector-fragment";
-import { clampScore } from "@/content/scoring/scoring-config";
+import { clampScore, SCORING_WEIGHTS } from "@/content/scoring/scoring-config";
 import { isGeneratedLikeToken } from "@/content/analyzer/attributes/generated-token";
+import { getBestContainedTier, getSemanticTier } from "@/content/analyzer/attributes/semantic-vocabulary";
 import { queryAllDeep } from "@/content/analyzer/dom/deep-query";
+import { getTokenOccurrenceCount } from "@/content/analyzer/dom/token-frequency";
 
 export class FragmentScorer {
 
@@ -24,17 +26,20 @@ export class FragmentScorer {
         const semanticScore = this.getSemanticScore(candidate, fragment);
         const tagScore = this.getTagScore(tagName);
         const concisionScore = this.getConcisionScore(fragment);
+        const rarityScore = this.getRarityScore(fragment);
         const generatedTokenPenalty = this.getGeneratedTokenPenalty(fragment);
 
+        const w = SCORING_WEIGHTS.fragment;
         const score = clampScore(
-            candidate.score * 0.2 +
-            operatorScore * 0.22 +
-            uniquenessScore * 0.24 +
-            tokenQualityScore * 0.14 +
-            stabilityScore * 0.12 +
-            semanticScore * 0.08 +
-            tagScore * 0.06 +
-            concisionScore * 0.12 -
+            candidate.score * w.inheritedCandidate +
+            operatorScore * w.operator +
+            uniquenessScore * w.uniqueness +
+            tokenQualityScore * w.tokenQuality +
+            stabilityScore * w.stability +
+            semanticScore * w.semantic +
+            tagScore * w.tagContext +
+            concisionScore * w.concision +
+            rarityScore * w.rarity -
             generatedTokenPenalty
         );
 
@@ -153,42 +158,19 @@ export class FragmentScorer {
         }
 
         const token = fragment.token.toLowerCase();
-        // Deliberately excludes generic/structural words (page, main, section,
-        // header, footer, sidebar, navigation, menu, ...) — those describe DOM
-        // structure, not business meaning, and already get their own bonus via
-        // getTagScore() when the element's actual tag is structural. Keeping them
-        // out here means a genuinely descriptive-but-longer token (e.g.
-        // "informations") isn't out-scored by a same-weight generic-but-shorter
-        // one (e.g. "page") once getConcisionScore() favors brevity.
-        const importantWords = [
-            "product",
-            "products",
-            "content",
-            "title",
-            "description",
-            "detail",
-            "details",
-            "information",
-            "info",
-            "price",
-            "image",
-            "images",
-            "gallery",
-            "composition",
-            "cart",
-            "category",
-            "brand",
-            "manufacturer",
-            "summary",
-            "size",
-            "taille",
-            "talla",
-            "color",
-            "colour",
-            "couleur"
-        ];
+        // Deliberately excludes tier-1 generic/structural words (page, main,
+        // section, header, footer, sidebar, navigation, menu, ...) — those
+        // describe DOM structure, not business meaning, and already get their
+        // own bonus via getTagScore() when the element's actual tag is
+        // structural. Keeping them out here means a genuinely descriptive-but-
+        // longer token (e.g. "informations") isn't out-scored by a same-weight
+        // generic-but-shorter one (e.g. "page") once getConcisionScore() favors
+        // brevity. Tier 2 (contextual, e.g. "content"/"gallery"/"cart") and
+        // tier 3 (target-oriented, e.g. "product"/"price") both count here —
+        // see semantic-vocabulary.ts.
+        const tier = getSemanticTier(token) ?? getBestContainedTier(token);
 
-        if (importantWords.some(word => token === word || token.includes(word))) {
+        if (tier === 2 || tier === 3) {
             return 0.35;
         }
 
@@ -246,6 +228,35 @@ export class FragmentScorer {
         if (length >= MAX_LENGTH) return 0;
 
         return 1 - (length - MIN_LENGTH) / (MAX_LENGTH - MIN_LENGTH);
+    }
+
+    // Domain-agnostic complement to getSemanticScore(): rewards a token that appears on
+    // few elements across the whole page (see token-frequency.ts), independent of whether
+    // it's a word the curated semantic-vocabulary.ts dictionary recognizes. This is what
+    // still gives a sensible signal on non-e-commerce pages, or on utility-CSS-heavy
+    // markup (e.g. Tailwind) where meaningful class names are rare or absent entirely.
+    private getRarityScore(fragment: SelectorFragment): number {
+        if (!fragment.token) {
+            return 0;
+        }
+
+        const count = getTokenOccurrenceCount(fragment.token);
+
+        // The token never appears as its own class/id token anywhere on the page — most
+        // often because it came from an attribute token-frequency.ts doesn't index (e.g.
+        // data-testid, name, role). Neutral rather than 0: this fragment shouldn't be
+        // punished for a signal that simply isn't measured for its attribute type.
+        if (count <= 0) {
+            return 0.5;
+        }
+
+        if (count === 1) return 1;
+        if (count <= 3) return 0.85;
+        if (count <= 10) return 0.6;
+        if (count <= 30) return 0.3;
+        if (count <= 100) return 0.1;
+
+        return 0;
     }
 
     private getStabilityScore(

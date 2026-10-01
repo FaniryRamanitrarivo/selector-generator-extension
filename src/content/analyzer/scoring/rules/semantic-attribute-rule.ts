@@ -5,75 +5,19 @@ import type {
 } from "../attribute-candidature";
 
 import { isGeneratedLikeToken } from "@/content/analyzer/attributes/generated-token";
-
-
-const IMPORTANT_WORDS = new Set([
-    "sku",
-    "size",
-    "color",
-    "product",
-    "products",
-    "title",
-    "name",
-    "price",
-    "image",
-    "images",
-    "description",
-    "details",
-    "detail",
-    "information",
-    "info",
-    "composition",
-    "care",
-    "button",
-    "menu",
-    "cart",
-    "gallery",
-    "hero",
-    "item",
-    "items",
-    "category",
-    "categories",
-    "brand",
-    "manufacturer",
-    "navigation",
-    "header",
-    "footer",
-    "sidebar"
-]);
-
-// Generic layout/wrapper words: they show up on almost any container div
-// (class="content-wrapper", class="page-container", ...) without identifying
-// a specific logical section, so unlike IMPORTANT_WORDS they must not be
-// able to single-handedly clear CONTAINER_SEMANTIC_THRESHOLD on their own —
-// otherwise the nearest such wrapper up the ancestor chain hijacks container
-// selection before a farther-but-actually-specific ancestor (or a 2-attribute
-// combination, see ContainerSelector.selectWithCombinedFragments) is ever
-// tried. Kept as a *weaker* signal rather than dropped entirely: paired with
-// a real IMPORTANT_WORDS token (e.g. "product content") they still add up to
-// a legitimate section boundary.
-const STRUCTURAL_WORDS = new Set([
-    "content",
-    "main",
-    "page",
-    "pages",
-    "container",
-    "section",
-    "summary",
-    "overview"
-]);
+import { getBestContainedTier, getSemanticTier, isSignificantToken } from "@/content/analyzer/attributes/semantic-vocabulary";
 
 export class SemanticAttributeRule
     implements ScoringRule<AttributeCandidate> {
 
     // Whether a single token is, on its own, a business/content-specific word
-    // (as opposed to a generic STRUCTURAL_WORDS layout term or an unrecognized
-    // one). Used by ContainerSelector to decide whether a fragment matching
-    // only this token may still borrow semantic credit from sibling tokens on
-    // the same attribute that don't actually appear in that fragment's
-    // selector text.
+    // (tier 3 — as opposed to a generic tier-1 layout term, a vaguer tier-2
+    // contextual word, or an unrecognized one). Used by ContainerSelector to
+    // decide whether a fragment matching only this token may still borrow
+    // semantic credit from sibling tokens on the same attribute that don't
+    // actually appear in that fragment's selector text.
     isSignificantToken(token: string): boolean {
-        return IMPORTANT_WORDS.has(token.toLowerCase());
+        return isSignificantToken(token);
     }
 
     apply(
@@ -92,23 +36,27 @@ export class SemanticAttributeRule
                 return total - 0.8;
             }
 
-            if (IMPORTANT_WORDS.has(token)) {
+            const tier = getSemanticTier(token);
+
+            if (tier === 3) {
                 return total + 1.1;
             }
 
-            if (STRUCTURAL_WORDS.has(token)) {
+            if (tier === 2) {
                 return total + 0.4;
             }
 
-            const containsImportantWord = [...IMPORTANT_WORDS].some(word => token.includes(word));
+            // tier === 1 (generic/structural) carries no bonus of its own here —
+            // see SEMANTIC_VOCABULARY's tier-1 doc comment: matching one alone
+            // must not be a strong signal.
 
-            if (containsImportantWord) {
+            const containedTier = getBestContainedTier(token);
+
+            if (containedTier === 3) {
                 return total + 0.55;
             }
 
-            const containsStructuralWord = [...STRUCTURAL_WORDS].some(word => token.includes(word));
-
-            if (containsStructuralWord) {
+            if (containedTier === 2) {
                 return total + 0.2;
             }
 
@@ -143,24 +91,26 @@ export class SemanticAttributeRule
         let semanticScore = 0;
 
         for (const word of words) {
-            if (IMPORTANT_WORDS.has(word)) {
+            const tier = getSemanticTier(word);
+
+            if (tier === 3) {
                 semanticScore += 0.75;
                 continue;
             }
 
-            if (STRUCTURAL_WORDS.has(word)) {
+            if (tier === 2) {
                 semanticScore += 0.25;
                 continue;
             }
 
-            const containsImportantWord = [...IMPORTANT_WORDS].some(important => word.includes(important));
-            if (containsImportantWord) {
+            const containedTier = getBestContainedTier(word);
+
+            if (containedTier === 3) {
                 semanticScore += 0.35;
                 continue;
             }
 
-            const containsStructuralWord = [...STRUCTURAL_WORDS].some(structural => word.includes(structural));
-            if (containsStructuralWord) {
+            if (containedTier === 2) {
                 semanticScore += 0.12;
             }
         }

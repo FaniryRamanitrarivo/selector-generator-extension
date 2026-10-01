@@ -14,6 +14,8 @@ import { SelectorCountNormalizer } from "@/content/analyzer/scoring/selector-cou
 import { ContainerSelector } from "../container/container-selector";
 import type { SelectorPart } from "../selector-part";
 import { resetDeepQueryCache } from "@/content/analyzer/dom/deep-query";
+import { resetTokenFrequencyCache } from "@/content/analyzer/dom/token-frequency";
+import { SCORING_WEIGHTS } from "@/content/scoring/scoring-config";
 
 export class SelectorGenerationPipeline {
 
@@ -27,9 +29,9 @@ export class SelectorGenerationPipeline {
 
     constructor() {
         this.attributeScorer = new AttributeScorer([
-            { rule: new CategoryRule(), weight: 50 },
-            { rule: new SemanticAttributeRule(), weight: 40 },
-            { rule: new TagNameRule(), weight: 20 }
+            { rule: new CategoryRule(), weight: SCORING_WEIGHTS.attribute.category },
+            { rule: new SemanticAttributeRule(), weight: SCORING_WEIGHTS.attribute.semantic },
+            { rule: new TagNameRule(), weight: SCORING_WEIGHTS.attribute.tagName }
         ]);
 
         this.fragmentScorer = new FragmentScorer();
@@ -48,6 +50,7 @@ export class SelectorGenerationPipeline {
         options: { multiResultMode?: boolean } = {}
     ) {
         resetDeepQueryCache();
+        resetTokenFrequencyCache();
 
         const multiResultMode = options.multiResultMode ?? false;
         const targetPart = this.buildTargetPart(context.element, multiResultMode);

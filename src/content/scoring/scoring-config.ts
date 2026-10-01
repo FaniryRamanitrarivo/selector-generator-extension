@@ -1,8 +1,11 @@
 export const SCORING_WEIGHTS = {
+    // Per-rule weights consumed directly by AttributeScorer's rule list (see
+    // SelectorGenerationPipeline's constructor) — these drive how CategoryRule,
+    // SemanticAttributeRule and TagNameRule combine into one attribute score.
     attribute: {
-        category: 0.45,
-        semantic: 0.3,
-        tagName: 0.25
+        category: 50,
+        semantic: 40,
+        tagName: 20
     },
     fragment: {
         inheritedCandidate: 0.3,
@@ -12,7 +15,11 @@ export const SCORING_WEIGHTS = {
         stability: 0.1,
         semantic: 0.08,
         tagContext: 0.04,
-        concision: 0.1
+        concision: 0.1,
+        // Page-wide rarity of the fragment's token (see token-frequency.ts) — a
+        // domain-agnostic complement to the curated `semantic` signal above, which
+        // only recognizes words in semantic-vocabulary.ts.
+        rarity: 0.1
     },
     selector: {
         readability: 0.18,
