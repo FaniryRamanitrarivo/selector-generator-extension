@@ -60,7 +60,7 @@ tsconfig-paths support), so any test file that transitively imports a module usi
 (most of `src/content` does) fails with `ERR_MODULE_NOT_FOUND` under that runner — pre-existing, unrelated
 to individual test content. Run those files with `npx tsx --test tests/<file>.test.ts` instead (`tsx` is
 already a devDependency and honors `tsconfig.json` paths). Running the whole suite that way
-(`npx tsx --test tests/*.test.ts`) is currently green (20/20 passing across all 7 test files).
+(`npx tsx --test tests/*.test.ts`) is currently green (51/51 passing across all 16 test files).
 
 ## Architecture
 
