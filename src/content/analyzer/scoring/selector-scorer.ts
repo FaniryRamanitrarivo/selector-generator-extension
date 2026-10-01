@@ -194,9 +194,17 @@ export class SelectorScorer {
         const lengthScore = this.getLengthScore(selector);
         const contextScore = this.getContextScore(selector);
 
-        // Context acts as a minimum baseline; it must not erase the
-        // semantic score computed above it.
-        const effectiveReadability = Math.max(readabilityScore, contextScore * 0.85);
+        // Context acts as a minimum baseline for an otherwise merely non-semantic
+        // selector; it must not erase a *penalty* — a selector flagged as
+        // generated-looking (css-in-js hash, bundler id, ...) almost always also
+        // matches EXPLICIT_IDENTIFIER_PATTERN (that's literally how the generated
+        // token got into the selector string), so without this guard the floor
+        // would silently raise GENERATED_IDENTIFIER_SCORE (0.2) back up to
+        // ~0.6-0.8 for virtually every generated-identifier selector — the one
+        // heuristic meant to catch them, neutralized by construction.
+        const effectiveReadability = this.isGeneratedIdentifierSelector(selector)
+            ? readabilityScore
+            : Math.max(readabilityScore, contextScore * 0.85);
         const effectivePrecision = Math.max(precisionScore, contextScore);
 
         return {
@@ -292,10 +300,12 @@ export class SelectorScorer {
      * READABILITY
      * ========================================================= */
 
-    private getReadabilityScore(selector: BuildedSelector): number {
-        const raw = selector.selector.toLowerCase();
+    private isGeneratedIdentifierSelector(selector: BuildedSelector): boolean {
+        return GENERATED_IDENTIFIER_PATTERN.test(selector.selector.toLowerCase());
+    }
 
-        if (GENERATED_IDENTIFIER_PATTERN.test(raw)) {
+    private getReadabilityScore(selector: BuildedSelector): number {
+        if (this.isGeneratedIdentifierSelector(selector)) {
             return READABILITY.GENERATED_IDENTIFIER_SCORE;
         }
 
@@ -308,7 +318,7 @@ export class SelectorScorer {
         const semanticCountScore = this.getSemanticCountScore(semanticMatches.length);
         const repetitionBonus = this.getSemanticRepetitionBonus(semanticMatches);
         const orderBonus = this.getSemanticOrderBonus(semanticMatches);
-        const densityBonus = this.getSemanticDensityBonus(semanticMatches.length, raw.length);
+        const densityBonus = this.getSemanticDensityBonus(semanticMatches.length, selector.selector.length);
         const coverageBonus = this.getSemanticCoverageBonus(selector, semanticMatches);
         const attributeBonus = this.getSemanticAttributeBonus(semanticMatches);
         const nonSemanticPenalty = this.getNonSemanticFragmentPenalty(selector, semanticMatches);
