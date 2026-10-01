@@ -162,6 +162,38 @@ test('SelectorScorer rewards semantic readability and repetition', () => {
   assert.ok(semanticResult.score > generatedResult.score);
 });
 
+test('SelectorScorer does not let the context floor erase the generated-identifier readability penalty', () => {
+  // A generated-looking token (css-in-js hash here) is, by construction, almost
+  // always wrapped in an explicit attribute selector too — EXPLICIT_IDENTIFIER_PATTERN
+  // matches `[class*="..."]` regardless of what the value is. The readability floor
+  // (contextScore * 0.85) must not use that same explicit-attribute syntax to raise
+  // GENERATED_IDENTIFIER_SCORE back up — that would make the one heuristic meant to
+  // catch unstable generated classes effectively unreachable.
+  globalThis.document = {
+    querySelectorAll: () => [{}]
+  } as unknown as Document;
+
+  const scorer = new SelectorScorer();
+
+  const generatedSelector: BuildedSelector = {
+    selector: 'div[class*="css-2433413"]',
+    score: 0,
+    fragmentScores: [0.3]
+  };
+
+  const result = scorer.score(generatedSelector);
+  const contextScore = result.debug!.tagScore!;
+
+  assert.ok(
+    result.evaluation!.readabilityScore < contextScore * 0.85,
+    `expected the generated-identifier penalty to survive below the context floor, got readability=${result.evaluation!.readabilityScore} floor=${contextScore * 0.85}`
+  );
+  assert.ok(
+    result.evaluation!.readabilityScore < 0.3,
+    `expected a strongly penalized readability score, got ${result.evaluation!.readabilityScore}`
+  );
+});
+
 test('SelectorScorer gives a small reward for semantic order', () => {
   globalThis.document = {
     querySelectorAll: () => []
